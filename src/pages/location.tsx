@@ -3,11 +3,8 @@ import { useRouter } from 'next/router'
 import axios from 'axios'
 import Link from 'next/link'
 
-import { GoogleMap, MarkerF, InfoWindow, Circle, DirectionsRenderer } from '@react-google-maps/api';
 import { useGoogleMaps } from '@/providers/GoogleMapsProvider';
-import Spinner from 'react-bootstrap/Spinner';
 import { encrypt } from '@/utils/helpers'
-import MapLayerControl from '@/components/MapLayerControl'
 
 import Map, { Marker, MapRef, Source, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -54,30 +51,6 @@ function CustomCompass({ bearing, onTap, size = 55 }: CustomCompassProps) {
         </div>
     );
 }
-
-// --- Legacy Google Maps constants (Phase 4C-1: kept, not rendered this phase) ---
-const CONTAINER_STYLE = { width: '100vw', height: '100vh' };
-const PATIENT_ICON_FG = {
-    url: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-    scaledSize: { width: 44, height: 44 },
-};
-const PATIENT_ICON_BG = {
-    path: "M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z",
-    fillColor: "white",
-    fillOpacity: 1,
-    strokeColor: "white",
-    strokeWeight: 4,
-    scale: 1.2,
-};
-const MY_LOC_ICON_OPT = {
-    path: typeof google !== "undefined" ? google.maps.SymbolPath.FORWARD_CLOSED_ARROW : 1,
-    scale: 8,
-    fillColor: "#4285F4", // Blue arrow
-    fillOpacity: 1,
-    strokeColor: "white",
-    strokeWeight: 2,
-    rotation: 0
-};
 
 // --- Overview (Mapbox) constants ---
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -153,20 +126,27 @@ const Location = () => {
     const mapRef = useRef<MapRef>(null); // Overview/Mapbox map ref
 
     // ════════════════════════════════════════════════════════════════════
-    // AFE STATE/LOGIC — auth, Safe Zone, patient polling, GPS watcher, Google
-    // Maps UI. This is the single source of truth for real data (patientPos,
-    // myPos/myPosUpdatedAt, dataUser, safezonePos). The Overview UI below
-    // reads from this state via derived consts (patientLocation, userLocation,
+    // AFE STATE/LOGIC — auth, Safe Zone, patient polling, GPS watcher. This is
+    // the single source of truth for real data (patientPos, myPos/
+    // myPosUpdatedAt, dataUser, safezonePos). The Overview UI below reads from
+    // this state via derived consts (patientLocation, userLocation,
     // userLocationUpdatedAt, gpsAgeMs, isGpsFresh, isStartDisabled) instead of
     // keeping its own parallel copies — consolidated in Phase 4C-2.
     //
-    // `googleMapRef` is renamed vs. the pre-Phase-4C-1 file only because the
-    // name `mapRef` is now owned by Overview's Mapbox ref above. The Google
-    // Maps JSX/state/functions below are otherwise unchanged and still run in
-    // the background; they are just not rendered this phase (see Phase 4C-1
-    // report) — Safe Zone has not moved to Mapbox yet.
+    // The Google-Maps-only map-instance ref/state, padding, directions,
+    // routeInfo, a route-timing ref, an info-window state, a map-type toggle,
+    // a map-load callback, a marker-click handler, and a Google-Maps-center
+    // memo (plus their supporting imports/constants) were removed in Phase
+    // 4C-4 — they had zero consumers left
+    // after the Google Maps JSX tree was already dropped from render in
+    // Phase 4C-1. `heading`/`setHeading` is kept (still fed by this GPS
+    // watcher and the compass-heading effect below, per Phase 4C-4C
+    // instructions) even though no UI currently reads it. `autoFollow` is also
+    // kept for now — its only consumer (the Google-Maps pan-to block) was
+    // removed from the GPS watcher in Phase 4C-4D, so it is currently
+    // fully unused, but its removal was not part of this phase's explicit
+    // scope.
     // ════════════════════════════════════════════════════════════════════
-    const [googleMapRef, setGoogleMapRef] = useState<google.maps.Map | null>(null);
     const [isLoading, setLoading] = useState(true);
     const [alert, setAlert] = useState({ show: false, message: '' });
 
@@ -179,17 +159,9 @@ const Location = () => {
 
     // UI/Map State
     const [heading, setHeading] = useState<number>(0);
-    const [padding, setPadding] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
     const [range1, setRange1] = useState(10);
     const [range2, setRange2] = useState(20);
 
-    // Routing
-    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
-    const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
-    const lastRouteTime = useRef<number>(0);
-
-    const [infoWindowData, setInfoWindowData] = useState({ id: 0, address: '', show: false });
-    const [mapType, setMapType] = useState('roadmap');
     const [autoFollow, setAutoFollow] = useState(true);
 
     // --- Effects ---
@@ -274,15 +246,7 @@ const Location = () => {
 
     // --- Effects ---
 
-    // 1. Calculate Padding (Bottom Center logic) — legacy, feeds the (dormant) Google Map's padding option
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            const topPad = window.innerHeight * 0.55;
-            setPadding({ top: topPad, bottom: 150, left: 0, right: 0 });
-        }
-    }, []);
-
-    // 2. Compass Heading — legacy, feeds the (dormant) Google Map icon rotation
+    // 2. Compass Heading — feeds `heading` (kept per Phase 4C-4C — see state block comment above)
     useEffect(() => {
         const handleOrientation = (event: DeviceOrientationEvent) => {
             // @ts-ignore
@@ -303,7 +267,12 @@ const Location = () => {
         };
     }, []);
 
-    // 3. User Location (GPS) - Follow Me — legacy Google-Maps-oriented watcher (myPos/googleMapRef)
+    // 3. User Location (GPS) — AFE's single GPS watcher. Feeds myPos/
+    // myPosUpdatedAt (source of truth for Overview's userLocation, consumed
+    // by the Mapbox camera effect/handleCenterCamera below) and heading. The
+    // Google-Maps pan-to/follow-mode block (map-instance follow call) was
+    // removed in Phase 4C-4D — Mapbox's own camera (isCameraCentered/isInitialFitDone/
+    // fitBounds/flyTo) now owns all camera-follow behavior.
     useEffect(() => {
         if (!navigator.geolocation) return;
         const watchId = navigator.geolocation.watchPosition(
@@ -316,17 +285,12 @@ const Location = () => {
                 if (gpsHeading !== null && !isNaN(gpsHeading) && position.coords.speed && position.coords.speed > 1) {
                     setHeading(gpsHeading);
                 }
-
-                // Follow Mode: Pan map to user ONLY if autoFollow is true
-                if (googleMapRef && autoFollow) {
-                    googleMapRef.panTo(newPos);
-                }
             },
             (error) => console.error("Error getting location:", error),
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
         return () => navigator.geolocation.clearWatch(watchId);
-    }, [googleMapRef, autoFollow]);
+    }, []);
 
     // --- Helpers for Distance ---
     const toRad = (d: number) => (d * Math.PI) / 180;
@@ -417,21 +381,6 @@ const Location = () => {
         const url = `https://www.google.com/maps/dir/?api=1&destination=${patientPos.lat},${patientPos.lng}`;
         window.open(url, "_blank");
     };
-
-    const onLoad = useCallback((mapInstance: google.maps.Map) => {
-        setGoogleMapRef(mapInstance);
-    }, []);
-
-    const handleMarkerClick = (id: number, address: string) => {
-        setInfoWindowData({ id, address, show: true });
-    };
-
-    // Center Logic: Prioritize User, then Patient, then Safezone — legacy, feeds the (dormant) Google Map
-    const center = useMemo(() => {
-        if (myPos) return myPos;
-        if (patientPos.lat !== 0) return patientPos;
-        return safezonePos;
-    }, [myPos, patientPos, safezonePos]);
 
     const hasValidTargetPosition =
         Number.isFinite(patientPos.lat) &&
