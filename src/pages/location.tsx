@@ -429,7 +429,6 @@ const Location = () => {
     // by the Overview "Web Application" / desktop start buttons below, per
     // Phase 4C-1 instructions ("Web Application ยังใช้ Link/query เดิม").
     const legacyNavigateHref = `/navigation?idlocation=${router.query.idlocation || ''}&users_id=${dataUser.userData?.users_id || ''}&takecare_id=${dataUser.takecareData?.takecare_id || ''}&auToken=${router.query.auToken || ''}`;
-
     // ════════════════════════════════════════════════════════════════════
     // OVERVIEW (MAPBOX) UI — new primary UI for this page (Phase 4C-1).
     // Ported from afe-navigation-frontend-production/app/overview/page.tsx.
@@ -469,6 +468,36 @@ const Location = () => {
         !isGpsFresh ||
         !hasValidTargetPosition ||
         !hasResolvedNavigationIdentity;
+
+    const mobileAppNativeHref = useMemo(() => {
+        if (!hasResolvedNavigationIdentity) return null;
+        const params = new URLSearchParams();
+        params.set('users_id', String(dataUser.userData?.users_id));
+        params.set('takecare_id', String(dataUser.takecareData?.takecare_id));
+        if (typeof router.query.idlocation === 'string' && router.query.idlocation) {
+            params.set('idlocation', router.query.idlocation);
+        }
+        if (typeof router.query.auToken === 'string' && router.query.auToken) {
+            params.set('auToken', router.query.auToken);
+        }
+        return `afeplus://navigation?${params.toString()}`;
+    }, [
+        dataUser.takecareData?.takecare_id,
+        dataUser.userData?.users_id,
+        hasResolvedNavigationIdentity,
+        router.query.auToken,
+        router.query.idlocation,
+    ]);
+    const handleMobileAppNative = useCallback(() => {
+        if (isStartDisabled || !mobileAppNativeHref) {
+            setAlert({ show: true, message: 'รอข้อมูลก่อนเริ่มนำทางผ่านแอป' });
+            return;
+        }
+        window.location.href = mobileAppNativeHref;
+        window.setTimeout(() => {
+            setAlert({ show: true, message: 'ไม่พบแอป AFE+ กรุณาติดตั้งแอปก่อน' });
+        }, 1200);
+    }, [isStartDisabled, mobileAppNativeHref]);
 
     useEffect(() => {
         const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -731,8 +760,13 @@ const Location = () => {
                                         <ChevronRight className="text-gray-400 w-5 h-5 shrink-0" />
                                     </Link>
 
-                                    {/* ปุ่มที่ 3: Mobile Application (placeholder — unchanged from Overview source) */}
-                                    <button className="w-full flex items-center p-4 rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition">
+                                    {/* ปุ่มที่ 3: Mobile Application — opens the native Flutter app via custom scheme. */}
+                                    <button
+                                        type="button"
+                                        onClick={handleMobileAppNative}
+                                        disabled={isStartDisabled || !mobileAppNativeHref}
+                                        className={`w-full flex items-center p-4 rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition ${(isStartDisabled || !mobileAppNativeHref) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
                                         <div className="w-[52px] h-[52px] bg-[#E8F0FE] rounded-full flex items-center justify-center shrink-0">
                                             <Navigation className="text-[#4285F4] w-6 h-6" />
                                         </div>
