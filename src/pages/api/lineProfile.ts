@@ -4,6 +4,7 @@ import axios from "axios";
 import prisma from "@/lib/prisma";
 import {
     replyMessage,
+    replyMainMenu,
     replyRegistration,
     replyUserData,
     replyNotRegistration,
@@ -201,7 +202,17 @@ export default async function handle(
                             events.message.text
                         ); // แสดงข้อความที่ได้รับจากผู้ใช้
 
-                        if (events.message.text === "ลงทะเบียน") {
+                        if (events.message.text === "ดูข้อมูล AFE PLUS" || events.message.text === "เมนู") {
+                            const responseUser = await api.getUser(userId);
+                            if (responseUser) {
+                                await replyMainMenu({
+                                    replyToken,
+                                    userData: responseUser,
+                                });
+                            } else {
+                                await replyNotRegistration({ replyToken, userId });
+                            }
+                        } else if (events.message.text === "ลงทะเบียน") {
                             const responseUser = await api.getUser(userId);
                             if (responseUser) {
                                 console.log(
