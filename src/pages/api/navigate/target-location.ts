@@ -7,9 +7,10 @@
  * not duplicate the Prisma client — uses AFE's existing `@/lib/prisma`.
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
+import { withRls } from '@/lib/withRls'
+export default withRls(
+    req => Number(req.query.users_id),
+    async function handler(req: NextApiRequest, res: NextApiResponse, prisma): Promise<void> {
   if (req.method !== 'GET') {
     res.setHeader('Allow', ['GET']);
     res.status(405).json({
@@ -108,3 +109,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return;
   }
 }
+);

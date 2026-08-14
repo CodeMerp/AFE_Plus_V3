@@ -2,15 +2,16 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
-
+import { withRls } from '@/lib/withRls'
 import { decrypt } from '@/utils/helpers'
 import _ from 'lodash'
 type Data = {
     message: string;
     data?: any;
 }
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRls(
+    req => Number(req.query?.uId),
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
 
     if (req.method === 'GET') {
         try {
@@ -72,3 +73,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
 }
+);

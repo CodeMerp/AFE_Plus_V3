@@ -60,7 +60,8 @@ export const postbackHeartRate = async ({
     try {
         const resUser = await api.getUser(userLineId);
         const resTakecareperson = await api.getTakecareperson(
-            takecarepersonId.toString()
+            takecarepersonId.toString(),
+            resUser?.users_id
         );
 
         if (resUser && resTakecareperson) {
@@ -138,7 +139,8 @@ export const postbackFall = async ({
     try {
         const resUser = await api.getUser(userLineId);
         const resTakecareperson = await api.getTakecareperson(
-            takecarepersonId.toString()
+            takecarepersonId.toString(),
+            resUser?.users_id
         );
 
         if (resUser && resTakecareperson) {
@@ -217,7 +219,8 @@ export const postbackTemp = async ({
     try {
         const resUser = await api.getUser(userLineId);
         const resTakecareperson = await api.getTakecareperson(
-            takecarepersonId.toString()
+            takecarepersonId.toString(),
+            resUser?.users_id
         );
 
         if (resUser && resTakecareperson) {
@@ -296,7 +299,8 @@ export const postbackSafezone = async ({
     try {
         const resUser = await api.getUser(userLineId);
         const resTakecareperson = await api.getTakecareperson(
-            takecarepersonId.toString()
+            takecarepersonId.toString(),
+            resUser?.users_id
         );
 
         if (resUser && resTakecareperson) {

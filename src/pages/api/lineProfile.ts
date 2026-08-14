@@ -74,7 +74,8 @@ const addGroupLine = async (groupId: string) => {
 const getUserTakecareperson = async (userId: string) => {
     console.log("Fetching user takecare person data for userId:", userId); // ตรวจสอบการดึงข้อมูลผู้ดูแล
     const responseUser = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${userId}`
+        `${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${userId}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (responseUser.data?.data) {
         console.log(
@@ -93,7 +94,8 @@ const getSafezone = async (takecare_id: number, users_id: number) => {
         `Fetching safezone data for takecare_id: ${takecare_id}, users_id: ${users_id}`
     ); // ตรวจสอบการดึงข้อมูลเขตปลอดภัย
     const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecare_id}&users_id=${users_id}`
+        `${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecare_id}&users_id=${users_id}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (response.data?.data) {
         console.log("Safezone data retrieved:", response.data.data); // แสดงข้อมูลเขตปลอดภัย
@@ -118,7 +120,8 @@ const getLocation = async (
         `Fetching location data for takecare_id: ${takecare_id}, users_id: ${users_id}, safezone_id: ${safezone_id}`
     ); // ตรวจสอบการดึงข้อมูลตำแหน่ง
     const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`
+        `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (response.data?.data) {
         console.log("Location data retrieved:", response.data.data); // แสดงข้อมูลตำแหน่ง
@@ -140,7 +143,8 @@ const getTemperature = async (takecare_id: number, users_id: number) => {
         `Fetching settingTemp data for ${takecare_id}, user_id ${users_id}`
     );
     const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/setting/getTemperature?takecare_id=${takecare_id}&users_id=${users_id}`
+        `${process.env.WEB_DOMAIN}/api/setting/getTemperature?takecare_id=${takecare_id}&users_id=${users_id}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (response.data?.data) {
         console.log("settingtemp data retrieved ", response.data.data);
@@ -160,7 +164,8 @@ const getHeartRate = async (takecare_id: number, users_id: number) => {
         `Fetching heart rate setting data for takecare_id: ${takecare_id}, users_id: ${users_id}`
     );
     const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/setting/getHeartRate?takecare_id=${takecare_id}&users_id=${users_id}`
+        `${process.env.WEB_DOMAIN}/api/setting/getHeartRate?takecare_id=${takecare_id}&users_id=${users_id}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (response.data?.data) {
         console.log("Heart rate setting data retrieved", response.data.data);

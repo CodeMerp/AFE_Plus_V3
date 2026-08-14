@@ -14,6 +14,11 @@ import { useEffect, useState } from 'react';
 import LoadPage from '@/components/LayoutPage/LoadPage';
 import PageChange from '@/components/LayoutPage/PageChange';
 import { GoogleMapsProvider } from '@/providers/GoogleMapsProvider';
+import { setupAxiosAuth } from '@/lib/liffAxios';
+
+if (typeof window !== 'undefined') {
+  setupAxiosAuth();
+}
 
 const App = ({ Component, pageProps }: AppProps) => {
   const { title, description, slug, titleBar } = pageProps;

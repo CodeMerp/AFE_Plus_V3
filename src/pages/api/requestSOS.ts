@@ -1,5 +1,5 @@
 ﻿import { NextApiRequest, NextApiResponse } from 'next' 
-import prisma from '@/lib/prisma'
+import { withRls } from '@/lib/withRls'
 import { replyNotificationSOS } from '@/utils/apiLineReply'
 
 type Data = {
@@ -7,7 +7,9 @@ type Data = {
 	data?: any;
 }
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRls(
+    req => Number(req.body?.uid),
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
 	if (req.method === 'POST') {
         if (req.headers['content-type'] !== 'application/json') {
             return res.status(400).json({ message: 'error', error: "Content-Type must be application/json" });
@@ -60,3 +62,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 		res.status(405).json({ message: `วิธี ${req.method} ไม่อนุญาต` });
 	}
 }
+);

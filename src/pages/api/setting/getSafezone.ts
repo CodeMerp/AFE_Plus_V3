@@ -2,10 +2,12 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
+import { withRls } from '@/lib/withRls'
 import _ from "lodash";
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRls(
+    req => Number(req.query.users_id),
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'GET') {
         try {
             const takecare_id = req.query.takecare_id
@@ -42,3 +44,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
 }
+);

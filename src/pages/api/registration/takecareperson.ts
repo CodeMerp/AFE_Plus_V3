@@ -2,13 +2,14 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
+import { withRlsAuth } from '@/lib/withRlsAuth'
 import { replyMessage, replyRegistration } from '@/utils/apiLineReply';
 type Data = {
     message: string;
     data?: any;
 }
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRlsAuth(
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'POST') {
         try {
             if (req.body) {
@@ -49,3 +50,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
 }
+);

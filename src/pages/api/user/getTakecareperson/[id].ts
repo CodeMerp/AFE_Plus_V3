@@ -2,10 +2,11 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
+import { withRlsAuth } from '@/lib/withRlsAuth'
 import { decrypt } from '@/utils/helpers'
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRlsAuth(
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'GET') {
         try {
             const id = decrypt(req.query.id as string); // ถอดรหัส ID
@@ -50,3 +51,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         return res.status(405).json({ message: `วิธี ${req.method} ไม่อนุญาต` });
     }
 }
+);

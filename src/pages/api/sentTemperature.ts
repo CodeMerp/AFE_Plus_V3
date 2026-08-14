@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
+import { withRls } from '@/lib/withRls'
+import { withAesDecrypt } from '@/lib/withAesDecrypt'
 import _ from 'lodash';
 import { replyNotificationPostbackTemp } from '@/utils/apiLineReply';
 import moment from 'moment';
@@ -9,7 +10,9 @@ type Data = {
     data?: any;
 };
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse<Data>) {
+export default withAesDecrypt(withRls(
+    req => Number(req.body?.uId),
+    async function handle(req: NextApiRequest, res: NextApiResponse<Data>, prisma) {
     if (req.method === 'PUT' || req.method === 'POST') {
         try {
             const body = req.body;
@@ -151,3 +154,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse<D
         return res.status(405).json({ message: 'error', data: `วิธี ${req.method} ไม่อนุญาต` });
     }
 }
+));

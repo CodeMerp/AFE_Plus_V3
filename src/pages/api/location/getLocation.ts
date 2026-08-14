@@ -2,10 +2,11 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
+import { withRlsAuth } from '@/lib/withRlsAuth'
 import _ from "lodash";
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRlsAuth(
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'GET') {
         try {
             const { users_id, takecare_id } = req.query;
@@ -42,3 +43,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         res.status(405).json({ message: `วิธี ${req.method} ไม่อนุญาต` });
     }
 }
+);

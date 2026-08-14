@@ -1,10 +1,13 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import prisma from '@/lib/prisma';
+import { withRls } from '@/lib/withRls'
+import { withAesDecrypt } from '@/lib/withAesDecrypt'
 import { getFlexTemplate, pushFlexMessage } from '@/utils/apiLineReply';
 import { replySafezoneBackMessage } from '@/utils/apiLineGroup';
 import moment from 'moment';
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withAesDecrypt(withRls(
+    req => Number(req.body?.uId),
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
   // รองรับทั้ง POST และ PUT
   if (req.method === 'PUT' || req.method === 'POST') {
     try {
@@ -193,3 +196,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     return res.status(405).json({ message: `วิธี ${req.method} ไม่อนุญาต` });
   }
 }
+));

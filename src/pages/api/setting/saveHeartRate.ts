@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import prisma from '@/lib/prisma'
+import { withRlsAuth } from '@/lib/withRlsAuth'
 import _ from 'lodash'
 
 type Data = {
@@ -7,7 +7,8 @@ type Data = {
     data?: any;
 }
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRlsAuth(
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'POST') {
         try {
             if (req.body) {
@@ -74,3 +75,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
         res.status(400).json({ message: `วิธี ${req.method} ไม่อนุญาต` });
     }
 }
+);

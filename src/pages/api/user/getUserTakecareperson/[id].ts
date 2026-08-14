@@ -2,10 +2,16 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
-import prisma from '@/lib/prisma'
+import { withRls } from '@/lib/withRls'
 import { decrypt } from '@/utils/helpers'
 
-export default async function handle(req: NextApiRequest, res: NextApiResponse) {
+export default withRls(
+    req => {
+        const id = decrypt(req.query.id as string)
+        const v = Array.isArray(id) ? id[0] : id
+        return v ? Number(v) : null
+    },
+    async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
     if (req.method === 'GET') {
         try {
             // const id = req.query.id
@@ -47,3 +53,4 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     }
 
 }
+);

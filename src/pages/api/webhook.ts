@@ -40,7 +40,9 @@ const addGroupLine = async (groupId: string) => {
 }
 
 const getUserTakecareperson = async (userId: string) => {
-  const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${userId}`);
+  const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${userId}`, {
+    headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' }
+  });
   if (responseUser.data?.data) {
     return responseUser.data.data;
   } else {
@@ -49,7 +51,9 @@ const getUserTakecareperson = async (userId: string) => {
 }
 
 const getSafezone = async (takecare_id: number, users_id: number) => {
-  const response = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecare_id}&users_id=${users_id}`);
+  const response = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecare_id}&users_id=${users_id}`, {
+    headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' }
+  });
   if (response.data?.data) {
     return response.data.data;
   } else {
@@ -58,7 +62,9 @@ const getSafezone = async (takecare_id: number, users_id: number) => {
 }
 
 const getLocation = async (takecare_id: number, users_id: number, safezone_id: number) => {
-  const response = await axios.get(`${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`);
+  const response = await axios.get(`${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`, {
+    headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' }
+  });
   if (response.data?.data) {
     return response.data.data;
   } else {
