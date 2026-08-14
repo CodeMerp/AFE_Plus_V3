@@ -498,6 +498,151 @@ export const pushMessage = async ({
     }
 }
 
+export const replyMainMenu = async ({
+    replyToken,
+    userData
+}: ReplyUserData) => {
+    try {
+        const profile = await getUserProfile(userData.users_line_id);
+        const requestData = {
+            replyToken,
+            messages: [
+                {
+                    type: "flex",
+                    altText: "เมนูทั้งหมดของ AFE PLUS",
+                    contents: {
+                        type: "carousel",
+                        contents: [
+                            {
+                                type: "bubble",
+                                body: {
+                                    type: "box",
+                                    layout: "vertical",
+                                    contents: [
+                                        {
+                                            type: "text",
+                                            text: "ฟีเจอร์หลัก",
+                                            weight: "bold",
+                                            size: "xl",
+                                            color: "#1DB446"
+                                        },
+                                        {
+                                            type: "text",
+                                            text: "บริการและอุปกรณ์ Smartwatch",
+                                            size: "xs",
+                                            color: "#aaaaaa",
+                                            margin: "sm"
+                                        }
+                                    ]
+                                },
+                                footer: {
+                                    type: "box",
+                                    layout: "vertical",
+                                    spacing: "sm",
+                                    contents: [
+                                        {
+                                            type: "button",
+                                            style: "primary",
+                                            color: "#1DB446",
+                                            action: {
+                                                type: "message",
+                                                label: "ข้อมูลสุขภาพ & ตำแหน่ง",
+                                                text: "ข้อมูลสุขภาพและตำแหน่ง"
+                                            }
+                                        },
+                                        {
+                                            type: "button",
+                                            style: "primary",
+                                            color: "#1DB446",
+                                            action: {
+                                                type: "message",
+                                                label: "เชื่อมต่อนาฬิกา",
+                                                text: "เชื่อมต่อนาฬิกา"
+                                            }
+                                        },
+                                        {
+                                            type: "button",
+                                            style: "secondary",
+                                            action: {
+                                                type: "message",
+                                                label: "ยืม-คืน",
+                                                text: "การยืม-คืนครุภัณฑ์"
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                type: "bubble",
+                                body: {
+                                    type: "box",
+                                    layout: "vertical",
+                                    contents: [
+                                        {
+                                            type: "text",
+                                            text: "จัดการบัญชี",
+                                            weight: "bold",
+                                            size: "xl",
+                                            color: "#0367D3"
+                                        },
+                                        {
+                                            type: "text",
+                                            text: "ข้อมูลส่วนตัวและการตั้งค่า",
+                                            size: "xs",
+                                            color: "#aaaaaa",
+                                            margin: "sm"
+                                        }
+                                    ]
+                                },
+                                footer: {
+                                    type: "box",
+                                    layout: "vertical",
+                                    spacing: "sm",
+                                    contents: [
+                                        {
+                                            type: "button",
+                                            style: "secondary",
+                                            action: {
+                                                type: "message",
+                                                label: "ข้อมูลผู้ใช้งาน",
+                                                text: "ข้อมูลผู้ใช้งาน"
+                                            }
+                                        },
+                                        {
+                                            type: "button",
+                                            style: "secondary",
+                                            action: {
+                                                type: "message",
+                                                label: "ลงทะเบียน",
+                                                text: "ลงทะเบียน"
+                                            }
+                                        },
+                                        {
+                                            type: "button",
+                                            style: "secondary",
+                                            action: {
+                                                type: "message",
+                                                label: "ตั้งค่าความปลอดภัย",
+                                                text: "ตั้งค่าความปลอดภัย"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        };
+
+        await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
+    } catch (error) {
+        if (error instanceof Error) {
+            console.log(error.message);
+        }
+    }
+};
+
 export const replyRegistration = async ({
     replyToken,
     userId
@@ -519,10 +664,16 @@ export const replyRegistration = async ({
                                 {
                                     type: "text",
                                     text: "ลงทะเบียน",
-                                    color: "#FFB400",
-                                    size: "xl",
                                     weight: "bold",
-                                    wrap: true
+                                    color: "#0000FF",
+                                    size: "xl"
+                                },
+                                {
+                                    type: "text",
+                                    text: `🔒 ข้อมูลของคุณจะถูกเก็บรักษาเป็นความลับอย่างปลอดภัย`,
+                                    wrap: true,
+                                    size: "sm",
+                                    margin: "md"
                                 },
                                 {
                                     type: "text",
@@ -531,22 +682,23 @@ export const replyRegistration = async ({
                                     color: "#555555",
                                     wrap: true,
                                     margin: "sm"
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
+                                }
+                            ]
+                        },
+                        footer: {
+                            type: "box",
+                            layout: "vertical",
+                            contents: [
                                 {
                                     type: "button",
                                     style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
+                                    color: "#00C300",
                                     action: {
                                         type: "uri",
-                                        label: "ยืนยันลงทะเบียน",
+                                        label: "กดเพื่อลงทะเบียน",
                                         uri: `${WEB_API}/registration?auToken=${userId}`
                                     }
-                                },
+                                }
                             ]
                         }
                     }
@@ -582,34 +734,33 @@ export const replyNotRegistration = async ({
                                 {
                                     type: "text",
                                     text: "ลงทะเบียน",
-                                    color: "#FFB400",
-                                    size: "xl",
                                     weight: "bold",
-                                    wrap: true
+                                    color: "#0000FF",
+                                    size: "xl"
                                 },
                                 {
                                     type: "text",
-                                    text: `คุณ ${profile.displayName} ยังไม่ได้ลงทะเบียน กรูณาลงทะเบียนก่อนเข้าใช้งาน`,
-                                    size: "sm",
-                                    color: "#555555",
+                                    text: `คุณ ${profile.displayName} ยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนก่อนเข้าใช้งาน`,
                                     wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
+                                    size: "sm",
+                                    margin: "md"
+                                }
+                            ]
+                        },
+                        footer: {
+                            type: "box",
+                            layout: "vertical",
+                            contents: [
                                 {
                                     type: "button",
                                     style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
+                                    color: "#00C300",
                                     action: {
                                         type: "uri",
-                                        label: "ยืนยันลงทะเบียน",
+                                        label: "กดเพื่อลงทะเบียน",
                                         uri: `${WEB_API}/registration?auToken=${userId}`
                                     }
-                                },
+                                }
                             ]
                         }
                     }
