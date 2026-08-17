@@ -8,6 +8,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
     if (req.method === 'GET') {
         try {
             const id_line = req.query.id
+            console.log('Querying user with LINE ID:', id_line)
+            
             const user = await prisma.users.findFirst({
                 where: {
                     users_line_id: id_line as string,
@@ -23,9 +25,14 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
                 },
             })
 
+            console.log('User found:', user ? 'YES' : 'NO')
             return res.status(200).json({ message: 'success', data: user })
         } catch (error) {
-            return res.status(500).json({ message: 'error', data: error })
+            console.error('Database error:', error)
+            return res.status(500).json({ 
+                message: 'error', 
+                data: error instanceof Error ? error.message : 'Unknown error' 
+            })
         }
 
     } else {

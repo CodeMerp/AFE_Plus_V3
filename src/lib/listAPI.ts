@@ -6,13 +6,26 @@ const urlName = (url: string) => {
 }
 
 export const getUser = async (userLineId: string) => {
-    const url = urlName(`/api/user/getUser/${userLineId}`)
-	const responseUser = await axios.get(url);
-	if(responseUser.data?.data){
-		return responseUser.data.data
-	}else{
-		return null
-	}
+    try {
+        const url = urlName(`/api/user/getUser/${userLineId}`)
+        console.log('Calling API:', url)
+        
+        const responseUser = await axios.get(url);
+        
+        if(responseUser.data?.data){
+            return responseUser.data.data
+        } else {
+            console.log('No data in response')
+            return null
+        }
+    } catch (error) {
+        console.error('getUser error:', error)
+        if (axios.isAxiosError(error)) {
+            console.error('Response status:', error.response?.status)
+            console.error('Response data:', error.response?.data)
+        }
+        return null
+    }
 }
 
 export const getTakecareperson = async (takecarepersonId: string, usersId?: number) => {

@@ -218,20 +218,28 @@ export default async function handle(
                                 await replyNotRegistration({ replyToken, userId });
                             }
                         } else if (events.message.text === "ลงทะเบียน") {
-                            const responseUser = await api.getUser(userId);
-                            if (responseUser) {
-                                console.log(
-                                    "User is already registered, replying with user data."
-                                );
-                                await replyUserData({
+                            try {
+                                const responseUser = await api.getUser(userId);
+                                if (responseUser) {
+                                    console.log(
+                                        "User is already registered, replying with user data."
+                                    );
+                                    await replyUserData({
+                                        replyToken,
+                                        userData: responseUser,
+                                    });
+                                } else {
+                                    console.log(
+                                        "User not registered, sending registration reply."
+                                    );
+                                    await replyRegistration({ replyToken, userId });
+                                }
+                            } catch (error) {
+                                console.error("Error in registration flow:", error)
+                                await replyMessage({
                                     replyToken,
-                                    userData: responseUser,
-                                });
-                            } else {
-                                console.log(
-                                    "User not registered, sending registration reply."
-                                );
-                                await replyRegistration({ replyToken, userId });
+                                    message: "ระบบขัดข้อง กรุณาลองใหม่อีกครั้ง"
+                                })
                             }
                         } else if (
                             events.message.text === "การยืม-คืนครุภัณฑ์"
