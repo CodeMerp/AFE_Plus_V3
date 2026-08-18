@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Map, { Marker, MapRef, Source, Layer, type ViewStateChangeEvent } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Layers, Navigation as NavIcon, Volume2, VolumeX } from 'lucide-react';
+import { Layers, Navigation as NavIcon, Volume2, VolumeX, ArrowUp } from 'lucide-react';
 import { NavigationProvider, useNavigation } from '@/hooks/useNavigation';
 import { AdaptivePollingService } from '@/services/pollingService';
 import CustomCompass from '@/components/CustomCompass';
+import TopNavigationBanner from '@/components/TopNavigationBanner';
 import { hasRouteTrimGeometryBasisChanged, shouldApplyRouteTrimPaint } from '@/lib/presentation/routeTrimRebaseModel';
 import { createInitialMotionState, type MotionState } from '@/lib/motion/MotionState';
 
@@ -3793,19 +3794,16 @@ function NavigationPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraMode, isCameraFollowing, mapHeading, markerScreenRotation, visualMarkerBearing]);
 
-  // SOURCE_COPY_ROUTE_GEOJSON — ported faithfully from
-  // afe-navigation-frontend-production/app/navigation/page.tsx:1576-1589.
-  // Source's routeGeoJSON/routeSourceData are built from `activeRouteSourcePath`
-  // (= stableRouteSourcePath), a state populated inside the route-apply effect
-  // that also owns body-lock/handoff trim (page.tsx:1601-2617) — not ported
-  // this phase. `path` (the raw NavigationContext field, upstream of that
-  // handoff/trim stage) is used here instead as the authoritative full-path
-  // input; see Phase 5C-8 audit for the evidence trail behind this choice.
-  // แปลง path เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
+  // SOURCE_COPY_ROUTE_GEOJSON — H-001 fix: Mapbox Source geometry now derives
+  // from stableRouteSourcePath (the page-owned stable route after handoff/
+  // body-lock decisions) instead of raw hook `path`. This matches Developer
+  // D035 semantics (page.tsx:1634-1643) and ensures RC08/RC09/RC10 stable
+  // apply/hold decisions control the rendered Source geometry.
+  // แปลง stableRouteSourcePath เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
   const routeGeoJSON: GeoJSON.LineString | null = useMemo(() => {
-    if (path.length < 2) return null;
-    return { type: 'LineString', coordinates: path.map((p) => [p.lng, p.lat] as [number, number]) };
-  }, [path]);
+    if (stableRouteSourcePath.length < 2) return null;
+    return { type: 'LineString', coordinates: stableRouteSourcePath.map((p) => [p.lng, p.lat] as [number, number]) };
+  }, [stableRouteSourcePath]);
 
   // GeoJSON FeatureCollection สำหรับ Source — memoized แยกต่างหากเพื่อลด setData calls
   const routeSourceData: GeoJSON.FeatureCollection = useMemo(() => ({
@@ -3818,6 +3816,25 @@ function NavigationPageInner() {
   const mapStyleUrl = isSatellite
     ? 'mapbox://styles/mapbox/satellite-streets-v12'
     : 'mapbox://styles/mapbox/streets-v12';
+
+  // CHG-07 — Near-arrival display distance semantics. Page-local presentation
+  // only. Uses existing Production currentPosition + patientLocation state and
+  // the existing distanceMeters helper. Does NOT change arrival detection,
+  // threshold constants, markArrived, route geometry, or useNavigation.
+  // NOTE: currentPosition/patientLocation are guaranteed non-null here because
+  // this code is after the early-return guards at lines ~3888-3907.
+  const directTargetDistanceM = useMemo(() => {
+    if (!currentPosition || !patientLocation) return null;
+    const d = distanceMeters(currentPosition, patientLocation);
+    return Number.isFinite(d) ? d : null;
+  }, [currentPosition, patientLocation]);
+
+  const isNearArrival = useMemo(() => {
+    if (status === 'arrived' || hasArrived) return false;
+    if (status !== 'active') return false;
+    if (directTargetDistanceM === null) return false;
+    return directTargetDistanceM <= NAV_ARRIVAL_NEAR_THRESHOLD_M;
+  }, [status, hasArrived, directTargetDistanceM]);
 
   const navigationSummary = useMemo(() => {
     const safeDistance = Math.max(0, Number(distance) || 0);
@@ -3834,9 +3851,78 @@ function NavigationPageInner() {
     const distanceLabel = safeDistance > 1000
       ? `${(safeDistance / 1000).toFixed(1)} กม.`
       : `${Math.round(safeDistance || 0)} ม.`;
+    // CHG-08 — Near-arrival display distance merge. When isNearArrival, show
+    // direct current-to-target distance in the bottom summary instead of route
+    // distance. Layout unchanged; only the displayed distance value changes.
+    const nearArrivalDistM = directTargetDistanceM ?? 0;
+    const displayDistanceLabel = isNearArrival
+      ? (nearArrivalDistM >= 1000
+          ? `${(nearArrivalDistM / 1000).toFixed(1)} กม.`
+          : `${Math.max(1, Math.round(nearArrivalDistM))} ม.`)
+      : distanceLabel;
 
-    return { durationHrs, durationMins, arrivalTime, distanceLabel };
-  }, [distance, eta]);
+    return { durationHrs, durationMins, arrivalTime, distanceLabel, displayDistanceLabel };
+  }, [distance, eta, isNearArrival, directTargetDistanceM]);
+
+  // CHG-06 — Safe retry action. Page-local callback only. Guards on
+  // currentPosition and patientLocation before calling Production start().
+  // Does NOT edit useNavigation, call backend directly, add retry loops or
+  // timers, or bypass Production concurrency / 429 guards.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const handleRetryNavigation = useCallback(() => {
+    if (!currentPosition || !patientLocation) return;
+    start(currentPosition, patientLocation);
+  }, [currentPosition, patientLocation, start]);
+
+  // CHG-05 — Route UX banner mapping. Page-local derived presentation only.
+  // Maps existing Production routeUxState to banner title/subtitle/action.
+  // Does NOT change route classifier, status transitions, retry policy,
+  // polling, API behavior, restore, session lifecycle, or rate-limit handling.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const routeUxBanner = useMemo((): { title: string; subtitle: string | null; action: string | null } | null => {
+    switch (routeUxState) {
+      case 'initializing':
+        return { title: 'กำลังสร้างเส้นทาง...', subtitle: null, action: null };
+      case 'recalculating':
+        return { title: 'กำลังปรับเส้นทาง...', subtitle: 'ตำแหน่งผู้ป่วยเปลี่ยน', action: null };
+      case 'routeTemporarilyUnavailable':
+        return { title: 'กำลังค้นหาเส้นทางใหม่...', subtitle: 'ยังใช้เส้นทางเดิม', action: null };
+      case 'initNoRoute':
+        return { title: 'ยังไม่พบเส้นทางเริ่มต้น', subtitle: null, action: 'ลองใหม่' };
+      case 'error':
+        return { title: 'เกิดข้อผิดพลาด', subtitle: null, action: null };
+      default:
+        return null;
+    }
+  }, [routeUxState]);
+
+  // CHG-04/CHG-07 — Top banner instruction derivation. Page-local derived value only.
+  // Uses existing Production status, hasArrived, distance state plus CHG-07
+  // isNearArrival and directTargetDistanceM for near-arrival presentation.
+  // No backend maneuver model added.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const topBannerInstruction = useMemo((): { title: string; distance: number | null } => {
+    const arrived = status === 'arrived' || hasArrived;
+    const safeDistance = Math.max(0, Number(distance) || 0);
+
+    if (status === 'loading' || routeUxState === 'initializing') {
+      return { title: 'กำลังคำนวณเส้นทาง...', distance: null };
+    }
+    if (arrived) {
+      return { title: 'ถึงจุดหมายแล้ว', distance: null };
+    }
+    // CHG-07: near-arrival banner uses direct target distance
+    if (isNearArrival && directTargetDistanceM !== null) {
+      return { title: 'ใกล้ถึงจุดหมายแล้ว', distance: directTargetDistanceM };
+    }
+    if (status === 'active' && safeDistance > 0) {
+      return { title: 'ขับต่อไปตามเส้นทาง', distance: safeDistance };
+    }
+    if (status === 'active') {
+      return { title: 'ขับต่อไปตามเส้นทาง', distance: null };
+    }
+    return { title: 'เตรียมพร้อมนำทาง', distance: null };
+  }, [status, hasArrived, distance, routeUxState, isNearArrival, directTargetDistanceM]);
 
   if (!router.isReady) {
     return (
@@ -4103,10 +4189,25 @@ function NavigationPageInner() {
                   targetBearing: 0,
                 });
                 mapRef.current.flyTo({ bearing: 0, duration: 500 });
+                // CHG-09 — Compass post-flyTo sync. Page-local behavior only.
+                // Syncs mapHeading from actual map state after flyTo completes.
+                setTimeout(() => {
+                  if (mapRef.current) {
+                    const actualAfter = mapRef.current.getBearing();
+                    mapHeadingRef.current = actualAfter;
+                    setMapHeading(actualAfter);
+                    navDebugLog('[CAM] CAMERA_COMPASS_NORTH_UP_COMPLETE', {
+                      actualBearingAfter: Math.round(actualAfter),
+                      isCameraFollowing: isCameraFollowingRef.current,
+                      cameraMode: cameraModeRef.current,
+                    });
+                  }
+                }, 550);
               }
             }}
           />
         </div>
+        {/* TODO: Re-enable sound control when turn-by-turn voice guidance is implemented.
         <button
           type="button"
           onClick={() => setIsSoundOn(!isSoundOn)}
@@ -4115,6 +4216,7 @@ function NavigationPageInner() {
         >
           {isSoundOn ? <Volume2 className="h-[28px] w-[28px] text-[#1B5E20]" /> : <VolumeX className="h-[28px] w-[28px] text-gray-500" />}
         </button>
+        */}
         <button
           type="button"
           onClick={() => setIsLayerModalOpen(true)}
@@ -4138,10 +4240,19 @@ function NavigationPageInner() {
         </div>
       )}
 
-      <div className="absolute left-4 right-4 top-4 z-10 rounded-[18px] bg-white/90 px-4 py-3 text-center shadow-sm backdrop-blur">
-        <h1 className="text-base font-bold text-gray-900">{readinessTitle}</h1>
-        <p className="mt-1 text-xs text-gray-600">status: {status}</p>
-      </div>
+      {/* CHG-03 — TopNavigationBanner render. Replaces simple readiness card in
+          the ready-map runtime. Only renders here (not in early return screens).
+          Uses CHG-04 topBannerInstruction and CHG-05 routeUxBanner.
+          CHG-06 retry guard passed as onAction. */}
+      <TopNavigationBanner
+        maneuverIcon={ArrowUp}
+        distance={topBannerInstruction.distance}
+        instruction={routeUxBanner ? routeUxBanner.title : topBannerInstruction.title}
+        subtitle={routeUxBanner ? (routeUxBanner.subtitle ?? null) : null}
+        action={routeUxBanner?.action ?? null}
+        onAction={routeUxBanner?.action ? handleRetryNavigation : undefined}
+        isVisible={true}
+      />
 
       <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-[30px] bg-white px-[25px] pb-[calc(2.2rem+env(safe-area-inset-bottom))] pt-5 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between">
@@ -4165,7 +4276,7 @@ function NavigationPageInner() {
             <p className="mt-1 truncate text-[20px] font-normal leading-none text-[#5F6368]">
               {status === 'arrived'
                 ? 'การนำทางเสร็จสิ้น'
-                : `${navigationSummary.distanceLabel} • ${navigationSummary.arrivalTime}`}
+                : `${navigationSummary.displayDistanceLabel} • ${navigationSummary.arrivalTime}`}
             </p>
           </div>
           <button
