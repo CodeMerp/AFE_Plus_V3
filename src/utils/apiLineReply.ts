@@ -654,8 +654,8 @@ export const replyMenuBorrowequipment = async ({ replyToken, userData }: ReplyUs
                         },
                         footer: {
                             type: 'box', layout: 'vertical', spacing: 'sm', contents: [
-                                { type: 'button', style: 'primary', color: '#1976D2', action: { type: 'uri', label: 'ยืมครุภัณฑ์', uri: `${WEB_API}/borrowequipment/borrow?auToken=${userData.users_line_id}` } },
-                                { type: 'button', style: 'primary', color: '#4477CE', action: { type: 'uri', label: 'คืนครุภัณฑ์', uri: `${WEB_API}/borrowequipment/return_of?auToken=${userData.users_line_id}` } }
+                                { type: 'button', style: 'primary', color: '#0000FF', action: { type: 'uri', label: 'ยืมครุภัณฑ์', uri: `${WEB_API}/borrowequipment/borrow?auToken=${userData.users_line_id}` } },
+                                { type: 'button', style: 'primary', color: '#0000FF', action: { type: 'uri', label: 'คืนครุภัณฑ์', uri: `${WEB_API}/borrowequipment/return_of?auToken=${userData.users_line_id}` } }
                             ]
                         }
                     }
