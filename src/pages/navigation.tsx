@@ -2,13 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Map, { Marker, MapRef, Source, Layer, type ViewStateChangeEvent } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Layers, Navigation as NavIcon, Volume2, VolumeX, ArrowUp } from 'lucide-react';
+import { Navigation as NavIcon, Volume2, VolumeX, ArrowUp } from 'lucide-react';
 import { NavigationProvider, useNavigation } from '@/hooks/useNavigation';
 import { AdaptivePollingService } from '@/services/pollingService';
 import CustomCompass from '@/components/CustomCompass';
 import TopNavigationBanner from '@/components/TopNavigationBanner';
 import { hasRouteTrimGeometryBasisChanged, shouldApplyRouteTrimPaint } from '@/lib/presentation/routeTrimRebaseModel';
 import { createInitialMotionState, type MotionState } from '@/lib/motion/MotionState';
+import {
+  getActiveResearchRunId,
+  isResearchModeEnabled,
+  researchService,
+  setActiveResearchRunId,
+} from '@/lib/services/research.service';
 
 type LatLngPoint = { lat: number; lng: number };
 
@@ -179,10 +185,12 @@ const INTEGRATOR_TURN_DETECT_DEG = 10.0;
 const PATIENT_MARKER_DEAD_ZONE_M = 4;
 const PATIENT_MARKER_INTERP_ALPHA = 0.2;
 const PATIENT_MARKER_MAX_JUMP_M = 25;
+const MARKER_BEARING_DEAD_ZONE_DEG = 3;
 const MARKER_BEARING_VISUAL_DEAD_ZONE_DEG = 1.5;
 const MARKER_BEARING_SMOOTH_TIME_MS = 300;
 const NAV_ARRIVAL_NEAR_THRESHOLD_M = 50;
 const NAV_ARRIVAL_REACHED_THRESHOLD_M = 5;
+const LAST_MILE_LABEL_THRESHOLD_M = 20;
 const ROUTE_BODY_LOCK_MIN_VISIBLE_PTS = 8;
 const ROUTE_BODY_LOCK_ENDPOINT_DELTA_M = 10;
 const ROUTE_SOURCE_ENDPOINT_MOVE_M = 1.0;
@@ -658,6 +666,62 @@ function NavigationPageInner() {
   // AUTHORIZED_CONTEXT_BINDING — endpointDiagnostics added for the route-apply
   // effect's dependency array (page.tsx:2617 depends on it too).
   const { start, stop, markArrived, updatePositions, status, sessionId, routeUxState, path, routeSourceKey, routeVersion, endpointDiagnostics, eta, distance } = useNavigation();
+  const [researchModeVisible, setResearchModeVisible] = useState(false);
+  const [researchRunId, setResearchRunId] = useState('');
+  const [researchStatus, setResearchStatus] = useState<'idle' | 'recording' | 'stopped'>('idle');
+  const [researchMessage, setResearchMessage] = useState('');
+
+  useEffect(() => {
+    const queryEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('research') === '1';
+    const enabled = queryEnabled || isResearchModeEnabled();
+    setResearchModeVisible(enabled);
+    if (enabled) {
+      const active = getActiveResearchRunId();
+      if (active) {
+        setResearchRunId(active);
+        setResearchStatus('recording');
+      }
+    }
+  }, []);
+
+  const handleResearchStart = useCallback(async () => {
+    const runId = researchRunId.trim();
+    if (!runId) {
+      setResearchMessage('runId required');
+      return;
+    }
+    try {
+      await researchService.startRun(runId);
+      setResearchStatus('recording');
+      setResearchMessage('recording');
+      if (sessionId) {
+        void researchService.bindSession(runId, sessionId).catch((err) => {
+          console.warn('[RESEARCH] bind existing session failed', err);
+        });
+      }
+    } catch (err) {
+      setResearchMessage(err instanceof Error ? err.message : String(err));
+    }
+  }, [researchRunId, sessionId]);
+
+  const handleResearchStop = useCallback(async () => {
+    const runId = researchRunId.trim();
+    if (!runId) return;
+    try {
+      await researchService.stopRun(runId);
+      setActiveResearchRunId(null);
+      setResearchStatus('stopped');
+      setResearchMessage('stopped');
+    } catch (err) {
+      setResearchMessage(err instanceof Error ? err.message : String(err));
+    }
+  }, [researchRunId]);
+
+  const handleResearchExport = useCallback((format: 'json' | 'csv') => {
+    const runId = researchRunId.trim();
+    if (!runId || typeof window === 'undefined') return;
+    window.open(researchService.exportUrl(runId, format), '_blank', 'noopener,noreferrer');
+  }, [researchRunId]);
   const [currentPosition, setCurrentPosition] = useState<LatLngPoint | null>(null);
   const [gpsHeading, setGpsHeading] = useState(0);
   const [hasGpsHeading, setHasGpsHeading] = useState(false);
@@ -666,8 +730,6 @@ function NavigationPageInner() {
   const [patientLocation, setPatientLocation] = useState<LatLngPoint | null>(null);
   const [visualPatientLocation, setVisualPatientLocation] = useState<LatLngPoint | null>(null);
   const [isSoundOn, setIsSoundOn] = useState(true);
-  const [isSatellite, setIsSatellite] = useState(false);
-  const [isLayerModalOpen, setIsLayerModalOpen] = useState(false);
   const prevHeadingRef = useRef(0);
   const hasNavigationBearingRef = useRef(false);
   const latestGpsSpeedRef = useRef(0);
@@ -3629,7 +3691,7 @@ function NavigationPageInner() {
     }
 
     const delta = shortestBearingDelta(previous.bearing, rawBearing);
-    if (Math.abs(delta) < MARKER_BEARING_VISUAL_DEAD_ZONE_DEG) {
+    if (Math.abs(delta) < MARKER_BEARING_DEAD_ZONE_DEG) {
       const stabilized = {
         bearing: previous.bearing,
         source: rawInfo.source,
@@ -3813,10 +3875,6 @@ function NavigationPageInner() {
       : [],
   }), [routeGeoJSON]);
 
-  const mapStyleUrl = isSatellite
-    ? 'mapbox://styles/mapbox/satellite-streets-v12'
-    : 'mapbox://styles/mapbox/streets-v12';
-
   // CHG-07 — Near-arrival display distance semantics. Page-local presentation
   // only. Uses existing Production currentPosition + patientLocation state and
   // the existing distanceMeters helper. Does NOT change arrival detection,
@@ -3924,6 +3982,19 @@ function NavigationPageInner() {
     return { title: 'เตรียมพร้อมนำทาง', distance: null };
   }, [status, hasArrived, distance, routeUxState, isNearArrival, directTargetDistanceM]);
 
+  const lastMileLabel = useMemo(() => {
+    if (status === 'arrived' || hasArrived) return null;
+    if (!patientLocation || path.length < 2) return null;
+
+    const routeEndpoint = path[path.length - 1];
+    const lastMileDistanceM = distanceMeters(routeEndpoint, patientLocation);
+    if (!Number.isFinite(lastMileDistanceM) || lastMileDistanceM < LAST_MILE_LABEL_THRESHOLD_M) {
+      return null;
+    }
+
+    return `อีกประมาณ ${Math.round(lastMileDistanceM)} เมตรจากปลายเส้นทาง`;
+  }, [hasArrived, path, patientLocation, status]);
+
   if (!router.isReady) {
     return (
       <main className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-6 text-center font-sans">
@@ -4005,7 +4076,10 @@ function NavigationPageInner() {
         : 'ระบบนำทางพร้อมแล้ว';
 
   return (
-    <main className="relative h-[100dvh] w-full overflow-hidden bg-[#EFEFEF] font-sans">
+    <main
+      className="relative flex h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden bg-[#EFEFEF] font-sans antialiased"
+      style={{ overscrollBehaviorY: 'none' }}
+    >
       <div
         className="absolute inset-0"
         onTouchStart={handleMapTouchStart}
@@ -4025,7 +4099,7 @@ function NavigationPageInner() {
           }}
           padding={{ top: 0, bottom: 0, left: 0, right: 0 }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={mapStyleUrl}
+          mapStyle="mapbox://styles/mapbox/streets-v12"
           onDragStart={(e) => handleUserGestureEvent('drag', e)}
           onZoomStart={(e) => handleUserGestureEvent('zoom', e)}
           onRotateStart={(e) => handleUserGestureEvent('rotate', e)}
@@ -4145,6 +4219,65 @@ function NavigationPageInner() {
 
       {/* Deferred: backend does not expose next-maneuver instruction/step distance. */}
 
+      {researchModeVisible && (
+        <div className="absolute left-4 bottom-[152px] z-30 w-[260px] bg-white/95 border border-gray-200 shadow-lg rounded-lg p-3 text-[12px] text-gray-800">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-semibold tracking-wide">V3 Research</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+              researchStatus === 'recording'
+                ? 'bg-green-100 text-green-700'
+                : researchStatus === 'stopped'
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-yellow-100 text-yellow-700'
+            }`}>
+              {researchStatus}
+            </span>
+          </div>
+          <input
+            value={researchRunId}
+            onChange={(e) => setResearchRunId(e.target.value)}
+            placeholder="V3-S1-R01"
+            disabled={researchStatus === 'recording'}
+            className="w-full border border-gray-300 rounded px-2 py-1.5 text-[12px] mb-2"
+          />
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button
+              onClick={handleResearchStart}
+              disabled={researchStatus === 'recording'}
+              className="px-2 py-1.5 rounded bg-green-600 text-white font-semibold disabled:bg-gray-300"
+            >
+              Start Test
+            </button>
+            <button
+              onClick={handleResearchStop}
+              disabled={researchStatus !== 'recording'}
+              className="px-2 py-1.5 rounded bg-red-600 text-white font-semibold disabled:bg-gray-300"
+            >
+              Stop Test
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleResearchExport('json')}
+              disabled={!researchRunId.trim()}
+              className="px-2 py-1.5 rounded bg-gray-900 text-white font-semibold disabled:bg-gray-300"
+            >
+              Export JSON
+            </button>
+            <button
+              onClick={() => handleResearchExport('csv')}
+              disabled={!researchRunId.trim()}
+              className="px-2 py-1.5 rounded bg-gray-900 text-white font-semibold disabled:bg-gray-300"
+            >
+              Export CSV
+            </button>
+          </div>
+          {researchMessage && (
+            <div className="mt-2 truncate text-[10px] text-gray-500">{researchMessage}</div>
+          )}
+        </div>
+      )}
+
       <div className="absolute top-[150px] right-4 z-10 flex flex-col gap-3">
         <div
           className="flex justify-end transition-opacity duration-300"
@@ -4207,7 +4340,6 @@ function NavigationPageInner() {
             }}
           />
         </div>
-        {/* TODO: Re-enable sound control when turn-by-turn voice guidance is implemented.
         <button
           type="button"
           onClick={() => setIsSoundOn(!isSoundOn)}
@@ -4215,15 +4347,6 @@ function NavigationPageInner() {
           aria-label={isSoundOn ? 'ปิดเสียง' : 'เปิดเสียง'}
         >
           {isSoundOn ? <Volume2 className="h-[28px] w-[28px] text-[#1B5E20]" /> : <VolumeX className="h-[28px] w-[28px] text-gray-500" />}
-        </button>
-        */}
-        <button
-          type="button"
-          onClick={() => setIsLayerModalOpen(true)}
-          className="flex h-[55px] w-[55px] items-center justify-center rounded-full bg-white shadow-lg transition-transform active:scale-95"
-          aria-label="ประเภทแผนที่"
-        >
-          <Layers className="h-[28px] w-[28px] text-[#1B5E20]" />
         </button>
       </div>
 
@@ -4248,7 +4371,7 @@ function NavigationPageInner() {
         maneuverIcon={ArrowUp}
         distance={topBannerInstruction.distance}
         instruction={routeUxBanner ? routeUxBanner.title : topBannerInstruction.title}
-        subtitle={routeUxBanner ? (routeUxBanner.subtitle ?? null) : null}
+        subtitle={routeUxBanner ? (routeUxBanner.subtitle ?? null) : (lastMileLabel ?? null)}
         action={routeUxBanner?.action ?? null}
         onAction={routeUxBanner?.action ? handleRetryNavigation : undefined}
         isVisible={true}
@@ -4273,7 +4396,7 @@ function NavigationPageInner() {
                 </>
               )}
             </div>
-            <p className="mt-1 truncate text-[20px] font-normal leading-none text-[#5F6368]">
+            <p className="mt-1 text-[20px] font-normal leading-none text-[#5F6368]">
               {status === 'arrived'
                 ? 'การนำทางเสร็จสิ้น'
                 : `${navigationSummary.displayDistanceLabel} • ${navigationSummary.arrivalTime}`}
@@ -4291,45 +4414,6 @@ function NavigationPageInner() {
           </button>
         </div>
       </div>
-
-      {isLayerModalOpen && (
-        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/30 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <div className="w-full max-w-sm rounded-[28px] bg-white px-6 py-5 shadow-[0_10px_30px_rgba(0,0,0,0.2)]">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-[22px] font-bold text-[#3C4043]">ประเภทแผนที่</h2>
-              <button
-                type="button"
-                onClick={() => setIsLayerModalOpen(false)}
-                className="rounded-full px-3 py-1.5 text-[15px] font-bold text-[#5F6368] active:scale-95"
-              >
-                ปิด
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSatellite(false);
-                  setIsLayerModalOpen(false);
-                }}
-                className={`rounded-[24px] border-[3px] px-4 py-5 text-[17px] font-bold transition-all active:scale-95 ${!isSatellite ? 'border-[#4D8D9A] text-[#4D8D9A] shadow-md' : 'border-transparent bg-gray-100 text-[#5F6368]'}`}
-              >
-                ค่าเริ่มต้น
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSatellite(true);
-                  setIsLayerModalOpen(false);
-                }}
-                className={`rounded-[24px] border-[3px] px-4 py-5 text-[17px] font-bold transition-all active:scale-95 ${isSatellite ? 'border-[#4D8D9A] text-[#4D8D9A] shadow-md' : 'border-transparent bg-gray-100 text-[#5F6368]'}`}
-              >
-                ดาวเทียม
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

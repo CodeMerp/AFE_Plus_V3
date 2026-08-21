@@ -26,8 +26,14 @@ export interface UpdateMetric {
   refetchReason?:  string | null;
   responsePathSource?: string | null;
   pathReachesTarget?: boolean | null;
+  targetCoveredBySessionGraph?: boolean | null;
+  targetCoverageReason?: string | null;
   graphNodeCount?:     number | null;
   graphEdgeCount?:     number | null;
+  targetProjectionM?: number | null;
+  targetProjectionDistanceM?: number | null;
+  targetAttachmentEdgeId?: string | null;
+  targetAttachmentSource?: string | null;
   jumpClassification?: string | null;
   jumpEdgeId?: string | null;
   jumpEdgeSource?: string | null;
@@ -107,14 +113,14 @@ export class NavigationService {
     this.log('API base (same-origin):', this.apiBase);
   }
 
-  async init(agentPos: LatLng, targetPos: LatLng, mode: NavigationMode = 'hybrid'): Promise<InitResponse | ApiError> {
+  async init(agentPos: LatLng, targetPos: LatLng, mode: NavigationMode = 'hybrid', runId?: string | null): Promise<InitResponse | ApiError> {
     try {
       const url = `${this.apiBase}/api/navigate/init`;
       this.log('POST', url);
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentPos, targetPos, mode })
+        body: JSON.stringify({ agentPos, targetPos, mode, ...(runId ? { runId } : {}) })
       });
       
       if (res.status === 429) return { error: true, status: 429, rateLimit: true };
@@ -131,6 +137,7 @@ export class NavigationService {
     agentPos: LatLng,
     targetPos: LatLng,
     signal?: AbortSignal,
+    research?: { runId?: string | null; routeUpdateId?: string | null },
   ): Promise<(UpdateResponse & { sessionExpired?: boolean }) | ApiError> {
     try {
       const url = `${this.apiBase}/api/navigate/update`;
@@ -138,7 +145,13 @@ export class NavigationService {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, agentPos, targetPos }),
+        body: JSON.stringify({
+          sessionId,
+          agentPos,
+          targetPos,
+          ...(research?.runId ? { runId: research.runId } : {}),
+          ...(research?.routeUpdateId ? { routeUpdateId: research.routeUpdateId } : {}),
+        }),
         signal,
       });
 
