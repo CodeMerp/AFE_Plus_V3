@@ -44,7 +44,8 @@ const getLocation = async (
     safezone_id: number
 ) => {
     const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`
+        `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`,
+        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
     );
     if (response.data?.data) {
         return response.data.data;

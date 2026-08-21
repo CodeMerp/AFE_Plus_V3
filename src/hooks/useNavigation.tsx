@@ -4,6 +4,13 @@
 
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 import { NavigationService, LatLng, NavigationMode } from '@/lib/services/navigation.service';
+import {
+  classifyUpdateResult,
+  getActiveResearchRunId,
+  makeClientEventId,
+  positionPayload,
+  researchService,
+} from '@/lib/services/research.service';
 
 const STORAGE_KEY = 'afe_navigation_session';
 const ROUTE_FIRST_POINT_WARN_M = 20;
@@ -354,6 +361,22 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   // ✅ 1. Restore session จาก localStorage เมื่อ component mount
   useEffect(() => {
     const restoreSession = async () => {
+      let recordRestoreResult: ((input: {
+        classification: 'SUCCESS' | 'FAILURE';
+        success: boolean;
+        failureReason?: string | null;
+        responseReceivedAt?: number | null;
+        status?: string | null;
+        pathLen?: number | null;
+        replanType?: string | null;
+        stepMs?: number | null;
+        totalMs?: number | null;
+        targetCoveredBySessionGraph?: boolean | null;
+        targetCoverageReason?: string | null;
+        refetchReason?: string | null;
+        pathReachesTarget?: boolean | null;
+        navMetric?: unknown;
+      }) => void) | null = null;
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) {
@@ -455,14 +478,70 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
         // เรียก /update เพื่อดึง path ล่าสุด
         // หมายเหตุ: ตรงนี้ถ้า res.ok ไม่ผ่าน หรือเป็น 404 จะ return { sessionExpired: true }
+        const restoreRunId = getActiveResearchRunId();
+        const restoreStartedAt = Date.now();
+        const restoreStartedIso = new Date(restoreStartedAt).toISOString();
+        const restoreRouteUpdateId = restoreRunId ? makeClientEventId(`restore-${data.sessionId}`) : null;
+        recordRestoreResult = (input) => {
+          if (!restoreRunId || !restoreRouteUpdateId) return;
+          const decisionCompletedAt = Date.now();
+          researchService.recordNavEvent({
+            runId: restoreRunId,
+            clientEventId: makeClientEventId('restore-result'),
+            sessionId: data.sessionId,
+            routeUpdateId: restoreRouteUpdateId,
+            event: 'NAV_UPDATE_RESULT',
+            clientTimestamp: new Date(decisionCompletedAt).toISOString(),
+            startedAt: restoreStartedIso,
+            responseReceivedAt: input.responseReceivedAt ? new Date(input.responseReceivedAt).toISOString() : null,
+            decisionCompletedAt: new Date(decisionCompletedAt).toISOString(),
+            systemRouteLatencyMs: decisionCompletedAt - restoreStartedAt,
+            classification: input.classification,
+            success: input.success,
+            failureReason: input.failureReason ?? null,
+            status: input.status ?? null,
+            pathLen: input.pathLen ?? null,
+            replanType: input.replanType ?? null,
+            stepMs: input.stepMs ?? null,
+            totalMs: input.totalMs ?? null,
+            targetCoveredBySessionGraph: input.targetCoveredBySessionGraph ?? null,
+            targetCoverageReason: input.targetCoverageReason ?? null,
+            refetchReason: input.refetchReason ?? null,
+            pathReachesTarget: input.pathReachesTarget ?? null,
+            navMetric: input.navMetric ?? null,
+            agentPos: positionPayload(gpsCheck.position),
+            targetPos: positionPayload(data.targetPos),
+          });
+        };
+        if (restoreRunId && restoreRouteUpdateId) {
+          researchService.recordNavEvent({
+            runId: restoreRunId,
+            clientEventId: makeClientEventId('restore-start'),
+            sessionId: data.sessionId,
+            routeUpdateId: restoreRouteUpdateId,
+            event: 'NAV_UPDATE_REQUEST_START',
+            clientTimestamp: restoreStartedIso,
+            startedAt: restoreStartedIso,
+            agentPos: positionPayload(gpsCheck.position),
+            targetPos: positionPayload(data.targetPos),
+          });
+        }
         const updateData = await navService.update(
           data.sessionId,
           gpsCheck.position,
           data.targetPos,
-          controller.signal
+          controller.signal,
+          restoreRunId && restoreRouteUpdateId ? { runId: restoreRunId, routeUpdateId: restoreRouteUpdateId } : undefined
         );
+        const restoreResponseReceivedAt = Date.now();
 
         if (controller.signal.aborted || isInitializingRef.current) {
+          recordRestoreResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: controller.signal.aborted ? 'restore_aborted' : 'fresh_start_in_progress',
+            responseReceivedAt: restoreResponseReceivedAt,
+          });
           navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
             reason: controller.signal.aborted ? 'restore_aborted' : 'fresh_start_in_progress',
             sessionId: data.sessionId,
@@ -472,12 +551,36 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
         if ('sessionExpired' in updateData && updateData.sessionExpired) {
           console.warn('🔄 Session expired on server, clearing stored session...');
+          recordRestoreResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'session_expired',
+            responseReceivedAt: restoreResponseReceivedAt,
+          });
           discardRestoredSession('invalid_session', { serverReason: 'session_expired' });
           return;
         }
 
         if ('success' in updateData && updateData.success) {
           if (!canApplyRoutePath(updateData.path, updateData.status, updateData.success)) {
+            recordRestoreResult({
+              classification: 'FAILURE',
+              success: false,
+              failureReason: updateData.status === 'NO_ROUTE'
+                ? updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? 'no_route'
+                : 'invalid_incoming_path',
+              responseReceivedAt: restoreResponseReceivedAt,
+              status: updateData.status,
+              pathLen: updateData.path?.length ?? 0,
+              replanType: updateData.lastMetric?.replanType ?? null,
+              stepMs: updateData.lastMetric?.stepMs ?? null,
+              totalMs: updateData.lastMetric?.totalMs ?? null,
+              targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
+              targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
+              refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
+              pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
+              navMetric: updateData.lastMetric ?? null,
+            });
             console.warn('[NAV] ROUTE_APPLY_BLOCKED_INVALID_RESPONSE', {
               source: 'restore', status: updateData.status, pathLen: (updateData.path as any)?.length ?? 0,
             });
@@ -509,20 +612,60 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           setEta(updateData.estimatedTimeSeconds || 0);
           setStatus('active');
           setRouteUxState('navigating');
+          {
+            const classified = classifyUpdateResult(updateData);
+            recordRestoreResult({
+              classification: classified.classification,
+              success: classified.classification === 'SUCCESS',
+              failureReason: classified.failureReason,
+              responseReceivedAt: restoreResponseReceivedAt,
+              status: updateData.status,
+              pathLen: updateData.path.length,
+              replanType: updateData.lastMetric?.replanType ?? null,
+              stepMs: updateData.lastMetric?.stepMs ?? null,
+              totalMs: updateData.lastMetric?.totalMs ?? null,
+              targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
+              targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
+              refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
+              pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
+              navMetric: updateData.lastMetric ?? null,
+            });
+          }
           console.log('✅ Session restored successfully');
         } else {
           // Session หมดอายุหรือ error → ลบออกจาก localStorage
           console.warn('❌ Failed to restore session, clearing...');
+          recordRestoreResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'error' in updateData ? `api_error_${updateData.status}` : ((updateData as any).status ?? 'restore_failed'),
+            responseReceivedAt: restoreResponseReceivedAt,
+            status: (updateData as any).status ?? null,
+            pathLen: (updateData as any).path?.length ?? 0,
+            navMetric: (updateData as any).lastMetric ?? null,
+          });
           discardRestoredSession('invalid_session', { serverStatus: (updateData as any).status ?? null });
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          recordRestoreResult?.({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'restore_aborted',
+            responseReceivedAt: null,
+          });
           navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
             reason: 'restore_aborted',
           });
           return;
         }
         console.error('❌ Restore session failed:', err);
+        recordRestoreResult?.({
+          classification: 'FAILURE',
+          success: false,
+          failureReason: err instanceof Error ? err.message : String(err),
+          responseReceivedAt: null,
+        });
         localStorage.removeItem(STORAGE_KEY);
         setStatus('idle');
         setRouteUxState('idle');
@@ -606,7 +749,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setStatus('loading');
     setRouteUxState('initializing');
     try {
-      const data = await navService.init(agent, target, mode);
+      const activeRunId = getActiveResearchRunId();
+      const data = await navService.init(agent, target, mode, activeRunId);
       console.log('[NAV] NAV_INIT_RESPONSE_RECEIVED', {
         status:    (data as any).status    ?? null,
         success:   (data as any).success   ?? null,
@@ -668,6 +812,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         sessionId:  initData.sessionId,
       });
       setSessionId(initData.sessionId);
+      if (activeRunId && initData.sessionId) {
+        void researchService.bindSession(activeRunId, initData.sessionId).catch((err) => {
+          console.warn('[RESEARCH] bind session failed', err);
+        });
+      }
       console.log('[NAV] APPLY_NEW_ROUTE', {
         source: 'init',
         pathLen: initData.path.length,
@@ -742,6 +891,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
       const seq = ++requestSeqRef.current;
       const startedAt = Date.now();
+      const startedIso = new Date(startedAt).toISOString();
       isUpdateInFlightRef.current = true;
 
       // Each request gets its own AbortController
@@ -751,17 +901,93 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
       const agentPos = agentRef.current;
       const targetPos = targetRef.current;
+      const activeRunId = getActiveResearchRunId();
+      const routeUpdateId = activeRunId ? `${sessionId}-u${seq}-${startedAt}` : null;
+
+      const recordResearchResult = (input: {
+        classification: 'SUCCESS' | 'FAILURE';
+        success: boolean;
+        failureReason?: string | null;
+        responseReceivedAt?: number | null;
+        decisionCompletedAt?: number;
+        status?: string | null;
+        pathLen?: number | null;
+        replanType?: string | null;
+        stepMs?: number | null;
+        totalMs?: number | null;
+        targetCoveredBySessionGraph?: boolean | null;
+        targetCoverageReason?: string | null;
+        refetchReason?: string | null;
+        pathReachesTarget?: boolean | null;
+        navMetric?: unknown;
+      }) => {
+        if (!activeRunId || !routeUpdateId) return;
+        const decisionCompletedAt = input.decisionCompletedAt ?? Date.now();
+        researchService.recordNavEvent({
+          runId: activeRunId,
+          clientEventId: makeClientEventId('nav-result'),
+          sessionId,
+          routeUpdateId,
+          event: 'NAV_UPDATE_RESULT',
+          clientTimestamp: new Date(decisionCompletedAt).toISOString(),
+          startedAt: startedIso,
+          responseReceivedAt: input.responseReceivedAt ? new Date(input.responseReceivedAt).toISOString() : null,
+          decisionCompletedAt: new Date(decisionCompletedAt).toISOString(),
+          systemRouteLatencyMs: decisionCompletedAt - startedAt,
+          classification: input.classification,
+          success: input.success,
+          failureReason: input.failureReason ?? null,
+          status: input.status ?? null,
+          pathLen: input.pathLen ?? null,
+          replanType: input.replanType ?? null,
+          stepMs: input.stepMs ?? null,
+          totalMs: input.totalMs ?? null,
+          targetCoveredBySessionGraph: input.targetCoveredBySessionGraph ?? null,
+          targetCoverageReason: input.targetCoverageReason ?? null,
+          refetchReason: input.refetchReason ?? null,
+          pathReachesTarget: input.pathReachesTarget ?? null,
+          navMetric: input.navMetric ?? null,
+          agentPos: positionPayload(agentPos),
+          targetPos: positionPayload(targetPos),
+        });
+      };
 
       console.log('[NAV] NAV_UPDATE_REQUEST_START', { seq, sessionId, startedAt });
+      if (activeRunId && routeUpdateId) {
+        researchService.recordNavEvent({
+          runId: activeRunId,
+          clientEventId: makeClientEventId('nav-start'),
+          sessionId,
+          routeUpdateId,
+          event: 'NAV_UPDATE_REQUEST_START',
+          clientTimestamp: startedIso,
+          startedAt: startedIso,
+          agentPos: positionPayload(agentPos),
+          targetPos: positionPayload(targetPos),
+        });
+      }
 
       try {
-        const data = await navService.update(sessionId, agentPos, targetPos, controller.signal);
+        const data = await navService.update(
+          sessionId,
+          agentPos,
+          targetPos,
+          controller.signal,
+          activeRunId && routeUpdateId ? { runId: activeRunId, routeUpdateId } : undefined,
+        );
         const durationMs = Date.now() - startedAt;
+        const responseReceivedAt = Date.now();
 
         // ── Stale response guard ─────────────────────────────────────────────
         if (seq <= latestAppliedSeqRef.current) {
           console.log('[NAV] NAV_UPDATE_STALE_RESPONSE_DROPPED', {
             seq, latestApplied: latestAppliedSeqRef.current, sessionId,
+          });
+          recordResearchResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'stale_response_dropped',
+            responseReceivedAt,
           });
           return;
         }
@@ -778,6 +1004,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
             });
             setRouteUxState('routeTemporarilyUnavailable');
           }
+          recordResearchResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: data.rateLimit ? 'rate_limited' : `api_error_${data.status}`,
+            responseReceivedAt,
+          });
           return;
         }
 
@@ -789,6 +1021,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         // ── Session expired → silent re-init ─────────────────────────────────
         if ('sessionExpired' in data && data.sessionExpired) {
           console.log('[NAV] Session expired, auto-recovering...', { seq, sessionId });
+          recordResearchResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'session_expired',
+            responseReceivedAt,
+          });
           start(agentRef.current, targetRef.current);
           return;
         }
@@ -828,6 +1066,21 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
             totalCost: updateData.totalCost,
             refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
             routeVersion: routeVersionRef.current,
+          });
+          recordResearchResult({
+            classification: 'SUCCESS',
+            success: true,
+            responseReceivedAt,
+            status: updateData.status,
+            pathLen: updateData.path?.length ?? 0,
+            replanType: updateData.lastMetric?.replanType ?? null,
+            stepMs: updateData.lastMetric?.stepMs ?? null,
+            totalMs: updateData.lastMetric?.totalMs ?? null,
+            targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
+            targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
+            refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
+            pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
+            navMetric: updateData.lastMetric ?? null,
           });
           markArrived();
           return;
@@ -869,6 +1122,22 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
               routeUxState: nextRouteUxState,
             });
           }
+          recordResearchResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: nonFatalReason,
+            responseReceivedAt,
+            status: updateData.status,
+            pathLen: updateData.path?.length ?? 0,
+            replanType: updateData.lastMetric?.replanType ?? null,
+            stepMs: updateData.lastMetric?.stepMs ?? null,
+            totalMs: updateData.lastMetric?.totalMs ?? null,
+            targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
+            targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
+            refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
+            pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
+            navMetric: updateData.lastMetric ?? null,
+          });
           return;
         }
 
@@ -1135,6 +1404,25 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           updateReason: truthUpdateReason,
           skipReason: truthSkipReason,
         });
+        {
+          const classified = classifyUpdateResult(updateData);
+          recordResearchResult({
+            classification: classified.classification,
+            success: classified.classification === 'SUCCESS',
+            failureReason: classified.failureReason,
+            responseReceivedAt,
+            status: updateData.status,
+            pathLen: updateData.path.length,
+            replanType: updateMeta.lastMetric?.replanType ?? null,
+            stepMs: updateMeta.lastMetric?.stepMs ?? null,
+            totalMs: updateMeta.lastMetric?.totalMs ?? null,
+            targetCoveredBySessionGraph: updateMeta.lastMetric?.targetCoveredBySessionGraph ?? null,
+            targetCoverageReason: updateMeta.lastMetric?.targetCoverageReason ?? null,
+            refetchReason: updateMeta.refetchReason ?? updateMeta.lastMetric?.refetchReason ?? null,
+            pathReachesTarget: updateData.pathReachesTarget ?? updateMeta.lastMetric?.pathReachesTarget ?? null,
+            navMetric: updateMeta.lastMetric ?? null,
+          });
+        }
 
         setDistance(updateData.totalCost || 0);
         setEta(updateData.estimatedTimeSeconds || 0);
@@ -1158,9 +1446,21 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       } catch (err: any) {
         if (err?.name === 'AbortError') {
           console.log('[NAV] NAV_UPDATE_REQUEST_ABORTED', { seq, sessionId });
+          recordResearchResult({
+            classification: 'FAILURE',
+            success: false,
+            failureReason: 'request_aborted',
+            responseReceivedAt: null,
+          });
           return;
         }
         console.error('[NAV] Polling error', { seq, sessionId, durationMs: Date.now() - startedAt, err });
+        recordResearchResult({
+          classification: 'FAILURE',
+          success: false,
+          failureReason: err instanceof Error ? err.message : String(err),
+          responseReceivedAt: null,
+        });
         setRouteUxState('routeTemporarilyUnavailable');
       } finally {
         isUpdateInFlightRef.current = false;

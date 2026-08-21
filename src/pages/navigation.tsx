@@ -2,12 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import Map, { Marker, MapRef, Source, Layer, type ViewStateChangeEvent } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Layers, Navigation as NavIcon, Volume2, VolumeX } from 'lucide-react';
+import { Navigation as NavIcon, Volume2, VolumeX, ArrowUp } from 'lucide-react';
 import { NavigationProvider, useNavigation } from '@/hooks/useNavigation';
 import { AdaptivePollingService } from '@/services/pollingService';
 import CustomCompass from '@/components/CustomCompass';
+import TopNavigationBanner from '@/components/TopNavigationBanner';
 import { hasRouteTrimGeometryBasisChanged, shouldApplyRouteTrimPaint } from '@/lib/presentation/routeTrimRebaseModel';
 import { createInitialMotionState, type MotionState } from '@/lib/motion/MotionState';
+import {
+  getActiveResearchRunId,
+  isResearchModeEnabled,
+  researchService,
+  setActiveResearchRunId,
+} from '@/lib/services/research.service';
 
 type LatLngPoint = { lat: number; lng: number };
 
@@ -178,10 +185,12 @@ const INTEGRATOR_TURN_DETECT_DEG = 10.0;
 const PATIENT_MARKER_DEAD_ZONE_M = 4;
 const PATIENT_MARKER_INTERP_ALPHA = 0.2;
 const PATIENT_MARKER_MAX_JUMP_M = 25;
+const MARKER_BEARING_DEAD_ZONE_DEG = 3;
 const MARKER_BEARING_VISUAL_DEAD_ZONE_DEG = 1.5;
 const MARKER_BEARING_SMOOTH_TIME_MS = 300;
 const NAV_ARRIVAL_NEAR_THRESHOLD_M = 50;
 const NAV_ARRIVAL_REACHED_THRESHOLD_M = 5;
+const LAST_MILE_LABEL_THRESHOLD_M = 20;
 const ROUTE_BODY_LOCK_MIN_VISIBLE_PTS = 8;
 const ROUTE_BODY_LOCK_ENDPOINT_DELTA_M = 10;
 const ROUTE_SOURCE_ENDPOINT_MOVE_M = 1.0;
@@ -657,6 +666,62 @@ function NavigationPageInner() {
   // AUTHORIZED_CONTEXT_BINDING — endpointDiagnostics added for the route-apply
   // effect's dependency array (page.tsx:2617 depends on it too).
   const { start, stop, markArrived, updatePositions, status, sessionId, routeUxState, path, routeSourceKey, routeVersion, endpointDiagnostics, eta, distance } = useNavigation();
+  const [researchModeVisible, setResearchModeVisible] = useState(false);
+  const [researchRunId, setResearchRunId] = useState('');
+  const [researchStatus, setResearchStatus] = useState<'idle' | 'recording' | 'stopped'>('idle');
+  const [researchMessage, setResearchMessage] = useState('');
+
+  useEffect(() => {
+    const queryEnabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('research') === '1';
+    const enabled = queryEnabled || isResearchModeEnabled();
+    setResearchModeVisible(enabled);
+    if (enabled) {
+      const active = getActiveResearchRunId();
+      if (active) {
+        setResearchRunId(active);
+        setResearchStatus('recording');
+      }
+    }
+  }, []);
+
+  const handleResearchStart = useCallback(async () => {
+    const runId = researchRunId.trim();
+    if (!runId) {
+      setResearchMessage('runId required');
+      return;
+    }
+    try {
+      await researchService.startRun(runId);
+      setResearchStatus('recording');
+      setResearchMessage('recording');
+      if (sessionId) {
+        void researchService.bindSession(runId, sessionId).catch((err) => {
+          console.warn('[RESEARCH] bind existing session failed', err);
+        });
+      }
+    } catch (err) {
+      setResearchMessage(err instanceof Error ? err.message : String(err));
+    }
+  }, [researchRunId, sessionId]);
+
+  const handleResearchStop = useCallback(async () => {
+    const runId = researchRunId.trim();
+    if (!runId) return;
+    try {
+      await researchService.stopRun(runId);
+      setActiveResearchRunId(null);
+      setResearchStatus('stopped');
+      setResearchMessage('stopped');
+    } catch (err) {
+      setResearchMessage(err instanceof Error ? err.message : String(err));
+    }
+  }, [researchRunId]);
+
+  const handleResearchExport = useCallback((format: 'json' | 'csv') => {
+    const runId = researchRunId.trim();
+    if (!runId || typeof window === 'undefined') return;
+    window.open(researchService.exportUrl(runId, format), '_blank', 'noopener,noreferrer');
+  }, [researchRunId]);
   const [currentPosition, setCurrentPosition] = useState<LatLngPoint | null>(null);
   const [gpsHeading, setGpsHeading] = useState(0);
   const [hasGpsHeading, setHasGpsHeading] = useState(false);
@@ -665,8 +730,6 @@ function NavigationPageInner() {
   const [patientLocation, setPatientLocation] = useState<LatLngPoint | null>(null);
   const [visualPatientLocation, setVisualPatientLocation] = useState<LatLngPoint | null>(null);
   const [isSoundOn, setIsSoundOn] = useState(true);
-  const [isSatellite, setIsSatellite] = useState(false);
-  const [isLayerModalOpen, setIsLayerModalOpen] = useState(false);
   const prevHeadingRef = useRef(0);
   const hasNavigationBearingRef = useRef(false);
   const latestGpsSpeedRef = useRef(0);
@@ -3628,7 +3691,7 @@ function NavigationPageInner() {
     }
 
     const delta = shortestBearingDelta(previous.bearing, rawBearing);
-    if (Math.abs(delta) < MARKER_BEARING_VISUAL_DEAD_ZONE_DEG) {
+    if (Math.abs(delta) < MARKER_BEARING_DEAD_ZONE_DEG) {
       const stabilized = {
         bearing: previous.bearing,
         source: rawInfo.source,
@@ -3793,19 +3856,16 @@ function NavigationPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraMode, isCameraFollowing, mapHeading, markerScreenRotation, visualMarkerBearing]);
 
-  // SOURCE_COPY_ROUTE_GEOJSON — ported faithfully from
-  // afe-navigation-frontend-production/app/navigation/page.tsx:1576-1589.
-  // Source's routeGeoJSON/routeSourceData are built from `activeRouteSourcePath`
-  // (= stableRouteSourcePath), a state populated inside the route-apply effect
-  // that also owns body-lock/handoff trim (page.tsx:1601-2617) — not ported
-  // this phase. `path` (the raw NavigationContext field, upstream of that
-  // handoff/trim stage) is used here instead as the authoritative full-path
-  // input; see Phase 5C-8 audit for the evidence trail behind this choice.
-  // แปลง path เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
+  // SOURCE_COPY_ROUTE_GEOJSON — H-001 fix: Mapbox Source geometry now derives
+  // from stableRouteSourcePath (the page-owned stable route after handoff/
+  // body-lock decisions) instead of raw hook `path`. This matches Developer
+  // D035 semantics (page.tsx:1634-1643) and ensures RC08/RC09/RC10 stable
+  // apply/hold decisions control the rendered Source geometry.
+  // แปลง stableRouteSourcePath เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
   const routeGeoJSON: GeoJSON.LineString | null = useMemo(() => {
-    if (path.length < 2) return null;
-    return { type: 'LineString', coordinates: path.map((p) => [p.lng, p.lat] as [number, number]) };
-  }, [path]);
+    if (stableRouteSourcePath.length < 2) return null;
+    return { type: 'LineString', coordinates: stableRouteSourcePath.map((p) => [p.lng, p.lat] as [number, number]) };
+  }, [stableRouteSourcePath]);
 
   // GeoJSON FeatureCollection สำหรับ Source — memoized แยกต่างหากเพื่อลด setData calls
   const routeSourceData: GeoJSON.FeatureCollection = useMemo(() => ({
@@ -3815,9 +3875,24 @@ function NavigationPageInner() {
       : [],
   }), [routeGeoJSON]);
 
-  const mapStyleUrl = isSatellite
-    ? 'mapbox://styles/mapbox/satellite-streets-v12'
-    : 'mapbox://styles/mapbox/streets-v12';
+  // CHG-07 — Near-arrival display distance semantics. Page-local presentation
+  // only. Uses existing Production currentPosition + patientLocation state and
+  // the existing distanceMeters helper. Does NOT change arrival detection,
+  // threshold constants, markArrived, route geometry, or useNavigation.
+  // NOTE: currentPosition/patientLocation are guaranteed non-null here because
+  // this code is after the early-return guards at lines ~3888-3907.
+  const directTargetDistanceM = useMemo(() => {
+    if (!currentPosition || !patientLocation) return null;
+    const d = distanceMeters(currentPosition, patientLocation);
+    return Number.isFinite(d) ? d : null;
+  }, [currentPosition, patientLocation]);
+
+  const isNearArrival = useMemo(() => {
+    if (status === 'arrived' || hasArrived) return false;
+    if (status !== 'active') return false;
+    if (directTargetDistanceM === null) return false;
+    return directTargetDistanceM <= NAV_ARRIVAL_NEAR_THRESHOLD_M;
+  }, [status, hasArrived, directTargetDistanceM]);
 
   const navigationSummary = useMemo(() => {
     const safeDistance = Math.max(0, Number(distance) || 0);
@@ -3834,9 +3909,91 @@ function NavigationPageInner() {
     const distanceLabel = safeDistance > 1000
       ? `${(safeDistance / 1000).toFixed(1)} กม.`
       : `${Math.round(safeDistance || 0)} ม.`;
+    // CHG-08 — Near-arrival display distance merge. When isNearArrival, show
+    // direct current-to-target distance in the bottom summary instead of route
+    // distance. Layout unchanged; only the displayed distance value changes.
+    const nearArrivalDistM = directTargetDistanceM ?? 0;
+    const displayDistanceLabel = isNearArrival
+      ? (nearArrivalDistM >= 1000
+          ? `${(nearArrivalDistM / 1000).toFixed(1)} กม.`
+          : `${Math.max(1, Math.round(nearArrivalDistM))} ม.`)
+      : distanceLabel;
 
-    return { durationHrs, durationMins, arrivalTime, distanceLabel };
-  }, [distance, eta]);
+    return { durationHrs, durationMins, arrivalTime, distanceLabel, displayDistanceLabel };
+  }, [distance, eta, isNearArrival, directTargetDistanceM]);
+
+  // CHG-06 — Safe retry action. Page-local callback only. Guards on
+  // currentPosition and patientLocation before calling Production start().
+  // Does NOT edit useNavigation, call backend directly, add retry loops or
+  // timers, or bypass Production concurrency / 429 guards.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const handleRetryNavigation = useCallback(() => {
+    if (!currentPosition || !patientLocation) return;
+    start(currentPosition, patientLocation);
+  }, [currentPosition, patientLocation, start]);
+
+  // CHG-05 — Route UX banner mapping. Page-local derived presentation only.
+  // Maps existing Production routeUxState to banner title/subtitle/action.
+  // Does NOT change route classifier, status transitions, retry policy,
+  // polling, API behavior, restore, session lifecycle, or rate-limit handling.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const routeUxBanner = useMemo((): { title: string; subtitle: string | null; action: string | null } | null => {
+    switch (routeUxState) {
+      case 'initializing':
+        return { title: 'กำลังสร้างเส้นทาง...', subtitle: null, action: null };
+      case 'recalculating':
+        return { title: 'กำลังปรับเส้นทาง...', subtitle: 'ตำแหน่งผู้ป่วยเปลี่ยน', action: null };
+      case 'routeTemporarilyUnavailable':
+        return { title: 'กำลังค้นหาเส้นทางใหม่...', subtitle: 'ยังใช้เส้นทางเดิม', action: null };
+      case 'initNoRoute':
+        return { title: 'ยังไม่พบเส้นทางเริ่มต้น', subtitle: null, action: 'ลองใหม่' };
+      case 'error':
+        return { title: 'เกิดข้อผิดพลาด', subtitle: null, action: null };
+      default:
+        return null;
+    }
+  }, [routeUxState]);
+
+  // CHG-04/CHG-07 — Top banner instruction derivation. Page-local derived value only.
+  // Uses existing Production status, hasArrived, distance state plus CHG-07
+  // isNearArrival and directTargetDistanceM for near-arrival presentation.
+  // No backend maneuver model added.
+  // NOTE: Declared unconditionally before early-return gates for Rules of Hooks.
+  const topBannerInstruction = useMemo((): { title: string; distance: number | null } => {
+    const arrived = status === 'arrived' || hasArrived;
+    const safeDistance = Math.max(0, Number(distance) || 0);
+
+    if (status === 'loading' || routeUxState === 'initializing') {
+      return { title: 'กำลังคำนวณเส้นทาง...', distance: null };
+    }
+    if (arrived) {
+      return { title: 'ถึงจุดหมายแล้ว', distance: null };
+    }
+    // CHG-07: near-arrival banner uses direct target distance
+    if (isNearArrival && directTargetDistanceM !== null) {
+      return { title: 'ใกล้ถึงจุดหมายแล้ว', distance: directTargetDistanceM };
+    }
+    if (status === 'active' && safeDistance > 0) {
+      return { title: 'ขับต่อไปตามเส้นทาง', distance: safeDistance };
+    }
+    if (status === 'active') {
+      return { title: 'ขับต่อไปตามเส้นทาง', distance: null };
+    }
+    return { title: 'เตรียมพร้อมนำทาง', distance: null };
+  }, [status, hasArrived, distance, routeUxState, isNearArrival, directTargetDistanceM]);
+
+  const lastMileLabel = useMemo(() => {
+    if (status === 'arrived' || hasArrived) return null;
+    if (!patientLocation || path.length < 2) return null;
+
+    const routeEndpoint = path[path.length - 1];
+    const lastMileDistanceM = distanceMeters(routeEndpoint, patientLocation);
+    if (!Number.isFinite(lastMileDistanceM) || lastMileDistanceM < LAST_MILE_LABEL_THRESHOLD_M) {
+      return null;
+    }
+
+    return `อีกประมาณ ${Math.round(lastMileDistanceM)} เมตรจากปลายเส้นทาง`;
+  }, [hasArrived, path, patientLocation, status]);
 
   if (!router.isReady) {
     return (
@@ -3919,7 +4076,10 @@ function NavigationPageInner() {
         : 'ระบบนำทางพร้อมแล้ว';
 
   return (
-    <main className="relative h-[100dvh] w-full overflow-hidden bg-[#EFEFEF] font-sans">
+    <main
+      className="relative flex h-[100dvh] min-h-[100dvh] w-full flex-col overflow-hidden bg-[#EFEFEF] font-sans antialiased"
+      style={{ overscrollBehaviorY: 'none' }}
+    >
       <div
         className="absolute inset-0"
         onTouchStart={handleMapTouchStart}
@@ -3939,7 +4099,7 @@ function NavigationPageInner() {
           }}
           padding={{ top: 0, bottom: 0, left: 0, right: 0 }}
           style={{ width: '100%', height: '100%' }}
-          mapStyle={mapStyleUrl}
+          mapStyle="mapbox://styles/mapbox/streets-v12"
           onDragStart={(e) => handleUserGestureEvent('drag', e)}
           onZoomStart={(e) => handleUserGestureEvent('zoom', e)}
           onRotateStart={(e) => handleUserGestureEvent('rotate', e)}
@@ -4059,6 +4219,65 @@ function NavigationPageInner() {
 
       {/* Deferred: backend does not expose next-maneuver instruction/step distance. */}
 
+      {researchModeVisible && (
+        <div className="absolute left-4 bottom-[152px] z-30 w-[260px] bg-white/95 border border-gray-200 shadow-lg rounded-lg p-3 text-[12px] text-gray-800">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-semibold tracking-wide">V3 Research</span>
+            <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+              researchStatus === 'recording'
+                ? 'bg-green-100 text-green-700'
+                : researchStatus === 'stopped'
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-yellow-100 text-yellow-700'
+            }`}>
+              {researchStatus}
+            </span>
+          </div>
+          <input
+            value={researchRunId}
+            onChange={(e) => setResearchRunId(e.target.value)}
+            placeholder="V3-S1-R01"
+            disabled={researchStatus === 'recording'}
+            className="w-full border border-gray-300 rounded px-2 py-1.5 text-[12px] mb-2"
+          />
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button
+              onClick={handleResearchStart}
+              disabled={researchStatus === 'recording'}
+              className="px-2 py-1.5 rounded bg-green-600 text-white font-semibold disabled:bg-gray-300"
+            >
+              Start Test
+            </button>
+            <button
+              onClick={handleResearchStop}
+              disabled={researchStatus !== 'recording'}
+              className="px-2 py-1.5 rounded bg-red-600 text-white font-semibold disabled:bg-gray-300"
+            >
+              Stop Test
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleResearchExport('json')}
+              disabled={!researchRunId.trim()}
+              className="px-2 py-1.5 rounded bg-gray-900 text-white font-semibold disabled:bg-gray-300"
+            >
+              Export JSON
+            </button>
+            <button
+              onClick={() => handleResearchExport('csv')}
+              disabled={!researchRunId.trim()}
+              className="px-2 py-1.5 rounded bg-gray-900 text-white font-semibold disabled:bg-gray-300"
+            >
+              Export CSV
+            </button>
+          </div>
+          {researchMessage && (
+            <div className="mt-2 truncate text-[10px] text-gray-500">{researchMessage}</div>
+          )}
+        </div>
+      )}
+
       <div className="absolute top-[150px] right-4 z-10 flex flex-col gap-3">
         <div
           className="flex justify-end transition-opacity duration-300"
@@ -4103,6 +4322,20 @@ function NavigationPageInner() {
                   targetBearing: 0,
                 });
                 mapRef.current.flyTo({ bearing: 0, duration: 500 });
+                // CHG-09 — Compass post-flyTo sync. Page-local behavior only.
+                // Syncs mapHeading from actual map state after flyTo completes.
+                setTimeout(() => {
+                  if (mapRef.current) {
+                    const actualAfter = mapRef.current.getBearing();
+                    mapHeadingRef.current = actualAfter;
+                    setMapHeading(actualAfter);
+                    navDebugLog('[CAM] CAMERA_COMPASS_NORTH_UP_COMPLETE', {
+                      actualBearingAfter: Math.round(actualAfter),
+                      isCameraFollowing: isCameraFollowingRef.current,
+                      cameraMode: cameraModeRef.current,
+                    });
+                  }
+                }, 550);
               }
             }}
           />
@@ -4114,14 +4347,6 @@ function NavigationPageInner() {
           aria-label={isSoundOn ? 'ปิดเสียง' : 'เปิดเสียง'}
         >
           {isSoundOn ? <Volume2 className="h-[28px] w-[28px] text-[#1B5E20]" /> : <VolumeX className="h-[28px] w-[28px] text-gray-500" />}
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsLayerModalOpen(true)}
-          className="flex h-[55px] w-[55px] items-center justify-center rounded-full bg-white shadow-lg transition-transform active:scale-95"
-          aria-label="ประเภทแผนที่"
-        >
-          <Layers className="h-[28px] w-[28px] text-[#1B5E20]" />
         </button>
       </div>
 
@@ -4138,10 +4363,19 @@ function NavigationPageInner() {
         </div>
       )}
 
-      <div className="absolute left-4 right-4 top-4 z-10 rounded-[18px] bg-white/90 px-4 py-3 text-center shadow-sm backdrop-blur">
-        <h1 className="text-base font-bold text-gray-900">{readinessTitle}</h1>
-        <p className="mt-1 text-xs text-gray-600">status: {status}</p>
-      </div>
+      {/* CHG-03 — TopNavigationBanner render. Replaces simple readiness card in
+          the ready-map runtime. Only renders here (not in early return screens).
+          Uses CHG-04 topBannerInstruction and CHG-05 routeUxBanner.
+          CHG-06 retry guard passed as onAction. */}
+      <TopNavigationBanner
+        maneuverIcon={ArrowUp}
+        distance={topBannerInstruction.distance}
+        instruction={routeUxBanner ? routeUxBanner.title : topBannerInstruction.title}
+        subtitle={routeUxBanner ? (routeUxBanner.subtitle ?? null) : (lastMileLabel ?? null)}
+        action={routeUxBanner?.action ?? null}
+        onAction={routeUxBanner?.action ? handleRetryNavigation : undefined}
+        isVisible={true}
+      />
 
       <div className="absolute bottom-0 left-0 right-0 z-20 rounded-t-[30px] bg-white px-[25px] pb-[calc(2.2rem+env(safe-area-inset-bottom))] pt-5 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
         <div className="flex items-center justify-between">
@@ -4162,10 +4396,10 @@ function NavigationPageInner() {
                 </>
               )}
             </div>
-            <p className="mt-1 truncate text-[20px] font-normal leading-none text-[#5F6368]">
+            <p className="mt-1 text-[20px] font-normal leading-none text-[#5F6368]">
               {status === 'arrived'
                 ? 'การนำทางเสร็จสิ้น'
-                : `${navigationSummary.distanceLabel} • ${navigationSummary.arrivalTime}`}
+                : `${navigationSummary.displayDistanceLabel} • ${navigationSummary.arrivalTime}`}
             </p>
           </div>
           <button
@@ -4180,45 +4414,6 @@ function NavigationPageInner() {
           </button>
         </div>
       </div>
-
-      {isLayerModalOpen && (
-        <div className="absolute inset-0 z-30 flex items-end justify-center bg-black/30 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <div className="w-full max-w-sm rounded-[28px] bg-white px-6 py-5 shadow-[0_10px_30px_rgba(0,0,0,0.2)]">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-[22px] font-bold text-[#3C4043]">ประเภทแผนที่</h2>
-              <button
-                type="button"
-                onClick={() => setIsLayerModalOpen(false)}
-                className="rounded-full px-3 py-1.5 text-[15px] font-bold text-[#5F6368] active:scale-95"
-              >
-                ปิด
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSatellite(false);
-                  setIsLayerModalOpen(false);
-                }}
-                className={`rounded-[24px] border-[3px] px-4 py-5 text-[17px] font-bold transition-all active:scale-95 ${!isSatellite ? 'border-[#4D8D9A] text-[#4D8D9A] shadow-md' : 'border-transparent bg-gray-100 text-[#5F6368]'}`}
-              >
-                ค่าเริ่มต้น
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSatellite(true);
-                  setIsLayerModalOpen(false);
-                }}
-                className={`rounded-[24px] border-[3px] px-4 py-5 text-[17px] font-bold transition-all active:scale-95 ${isSatellite ? 'border-[#4D8D9A] text-[#4D8D9A] shadow-md' : 'border-transparent bg-gray-100 text-[#5F6368]'}`}
-              >
-                ดาวเทียม
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

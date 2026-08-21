@@ -11,7 +11,7 @@ export default withRls(
     req => Number(req.body?.uid),
     async function handle(req: NextApiRequest, res: NextApiResponse, prisma) {
 	if (req.method === 'POST') {
-        if (req.headers['content-type'] !== 'application/json') {
+        if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
             return res.status(400).json({ message: 'error', error: "Content-Type must be application/json" });
         }
 

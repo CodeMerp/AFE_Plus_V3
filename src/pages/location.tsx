@@ -378,6 +378,15 @@ const Location = () => {
     }, [router.query.auToken, isLoaded, router.isReady, onGetUserData]);
 
     const handleEmergencyNav = () => {
+        if (
+            !patientPos ||
+            !Number.isFinite(patientPos.lat) ||
+            !Number.isFinite(patientPos.lng) ||
+            (patientPos.lat === 0 && patientPos.lng === 0)
+        ) {
+            setAlert({ show: true, message: 'ไม่พบตำแหน่งผู้ป่วย' });
+            return;
+        }
         const url = `https://www.google.com/maps/dir/?api=1&destination=${patientPos.lat},${patientPos.lng}`;
         window.open(url, "_blank");
     };

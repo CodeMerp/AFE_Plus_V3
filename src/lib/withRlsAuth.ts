@@ -42,18 +42,31 @@ export function withRlsAuth(handler: Handler) {
             }
 
             verifiedUserId = raw ? Number(raw) : null;
-        } else {
+        } else if (req.headers.authorization?.startsWith('Bearer ')) {
             // ทาง 2: LINE ID Token (สำหรับ LIFF)
             const auth = req.headers.authorization;
-            if (!auth?.startsWith('Bearer ')) {
-                return res.status(401).json({ message: 'Unauthorized: Missing Bearer token' });
-            }
             const idToken = auth.split(' ')[1];
             const lineId = await verifyLineToken(idToken);
             if (!lineId) {
                 return res.status(401).json({ message: 'Unauthorized: Invalid or expired token' });
             }
             const user = await basePrisma.users.findFirst({ where: { users_line_id: lineId } });
+            if (!user) {
+                return res.status(401).json({ message: 'Unauthorized: User not registered' });
+            }
+            verifiedUserId = user.users_id;
+        } else {
+            // ทาง 3: auToken — LINE user id ที่แนบมากับ URL ของหน้า (เปิดจาก rich menu)
+            // ทุกหน้าในระบบเดิมระบุตัวตนด้วยวิธีนี้ ไม่ได้ init LIFF SDK จึงไม่มี ID Token ให้แนบ
+            // header `x-au-token` ถูกแนบอัตโนมัติโดย interceptor ใน liffAxios.ts
+            const raw = req.headers['x-au-token'] ?? req.body?.auToken ?? req.query?.auToken;
+            const auToken = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : null;
+            if (!auToken) {
+                return res.status(401).json({ message: 'Unauthorized: Missing Bearer token' });
+            }
+            const user = await basePrisma.users.findFirst({
+                where: { users_line_id: auToken, users_status_active: 1 },
+            });
             if (!user) {
                 return res.status(401).json({ message: 'Unauthorized: User not registered' });
             }
