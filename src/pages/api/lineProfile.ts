@@ -116,26 +116,27 @@ const getLocation = async (
     users_id: number,
     safezone_id: number
 ) => {
-    console.log(
-        `Fetching location data for takecare_id: ${takecare_id}, users_id: ${users_id}, safezone_id: ${safezone_id}`
-    ); // ตรวจสอบการดึงข้อมูลตำแหน่ง
-    const response = await axios.get(
-        `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`,
-        { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
-    );
-    if (response.data?.data) {
-        console.log("Location data retrieved:", response.data.data); // แสดงข้อมูลตำแหน่ง
-        return response.data.data;
-    } else {
+    try {
         console.log(
-            "Location data not found for takecare_id:",
-            takecare_id,
-            "users_id:",
-            users_id,
-            "safezone_id:",
-            safezone_id
-        ); // กรณีที่ไม่พบข้อมูลตำแหน่ง
+            `Fetching location data for takecare_id: ${takecare_id}, users_id: ${users_id}, safezone_id: ${safezone_id}`
+        );
+        const response = await axios.get(
+            `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecare_id}&users_id=${users_id}&safezone_id=${safezone_id}`,
+            { headers: { 'x-internal-key': process.env.INTERNAL_API_KEY || '' } }
+        );
+        if (response.data?.data) {
+            console.log("Location data retrieved:", response.data.data);
+            return response.data.data;
+        }
+
         return null;
+    } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+            console.log("No current location found; using safezone coordinates.");
+            return null;
+        }
+
+        throw error;
     }
 };
 const getTemperature = async (takecare_id: number, users_id: number) => {
