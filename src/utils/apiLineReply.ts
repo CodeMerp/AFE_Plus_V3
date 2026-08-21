@@ -721,23 +721,6 @@ export const replyConnection = async ({
                     }
                 ]
             },
-            footer: { 
-                type: 'box', 
-                layout: 'vertical', 
-                spacing: 'sm', 
-                contents: [
-                    { 
-                        type: 'button', 
-                        style: 'primary', 
-                        color: '#00C300', 
-                        action: { 
-                            type: 'uri', 
-                            label: 'ตั้งค่าการเชื่อมต่อนาฬิกา', 
-                            uri: `${WEB_API}/connection?auToken=${userData.users_line_id}` 
-                                    } 
-                                }
-                            ] 
-                        }
                     }
                 }
             ],
