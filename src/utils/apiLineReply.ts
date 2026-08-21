@@ -677,95 +677,66 @@ export const replyConnection = async ({
         const requestData = {
             replyToken,
             messages: [
-                {
-                    type: "flex",
-                    altText: "การเชื่อมต่อนาฬิกา",
-                    contents: {
-                        type: "bubble",
-                        body: {
-                            type: "box",
-                            layout: "vertical",
-                            contents: [
-                                {
-                                    type: "text",
-                                    text: "การเชื่อมต่อนาฬิกา",
-                                    color: "#FFB400",
-                                    size: "xl",
-                                    weight: "bold",
-                                    wrap: true
-                                },
-                                {
-                                    type: "text",
-                                    text: `คุณ ${profile.displayName}`,
-                                    size: "sm",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "text",
-                                    text: `ข้อมูลผู้ดูแล`,
-                                    size: "md",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        layoutBoxBaseline("ชื่อ-สกุล", `${userData.users_fname} ${userData.users_sname}`, 4, 5),
-                                        layoutBoxBaseline("เบอร์โทร", `${userData.users_tel1 || '-'}`, 4, 5),
-                                    ]
-
-                                },
-                                {
-                                    type: "text",
-                                    text: `ข้อมูลผู้ที่มีภาวะพึ่งพิง`,
-                                    size: "md",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        layoutBoxBaseline("ชื่อ-สกุล", `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}`, 4, 5),
-                                        layoutBoxBaseline("เบอร์โทร", `${userTakecarepersonData.takecare_tel1 || '-'}`, 4, 5),
-                                    ]
-
-                                },
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        layoutBoxBaseline("ID", `${userData.users_id}`),
-                                        layoutBoxBaseline("PIN", `${userData.users_pin}`),
-                                    ]
-                                },
-                                // {
-                                //     type  : "button",
-                                //     style : "primary",
-                                //     height: "sm",
-                                //     margin: "xxl",
-                                //     action: {
-                                //         type : "uri",
-                                //         label: "ตั้งค่าการเชื่อมต่อนาฬิกา",
-                                //         uri  : `${WEB_API}/connection?auToken=${userData.users_line_id}`
-                                //     }
-                                // },
-                            ]
+    {
+        type: 'flex',
+        altText: 'การเชื่อมต่อนาฬิกา',
+        contents: {
+            type: 'bubble',
+            body: {
+                type: 'box',
+                layout: 'vertical',
+                contents: [
+                    { 
+                        type: 'text', 
+                        text: 'การเชื่อมต่อนาฬิกา', 
+                        weight: 'bold', 
+                        color: '#0000FF', 
+                        size: 'xl' 
+                    },
+                    { 
+                        type: 'text', 
+                        text: 'นำ ID และ PIN ที่คุณได้รับไปกรอกในแอปพลิเคชันบนนาฬิกา', 
+                        wrap: true, 
+                        size: 'sm', 
+                        margin: 'md', 
+                        color: '#666666' 
+                    },
+                    { 
+                        type: 'box', 
+                        layout: 'horizontal', 
+                        margin: 'lg', 
+                        contents: [ 
+                            { type: 'text', text: 'ID', weight: 'bold', size: 'md', flex: 1 }, 
+                            { type: 'text', text: String(userData.users_id || '-'), weight: 'bold', size: 'md', flex: 3 } 
+                        ] 
+                    },
+                    { 
+                        type: 'box', 
+                        layout: 'horizontal', 
+                        margin: 'sm', 
+                        contents: [ 
+                            { type: 'text', text: 'PIN', weight: 'bold', size: 'md', flex: 1 }, 
+                            { type: 'text', text: String(userData.users_pin || '-'), weight: 'bold', size: 'md', flex: 3 } 
+                        ] 
+                    }
+                ]
+            },
+            footer: { 
+                type: 'box', 
+                layout: 'vertical', 
+                spacing: 'sm', 
+                contents: [
+                    { 
+                        type: 'button', 
+                        style: 'primary', 
+                        color: '#00C300', 
+                        action: { 
+                            type: 'uri', 
+                            label: 'ตั้งค่าการเชื่อมต่อนาฬิกา', 
+                            uri: `${WEB_API}/connection?auToken=${userData.users_line_id}` 
+                                    } 
+                                }
+                            ] 
                         }
                     }
                 }
