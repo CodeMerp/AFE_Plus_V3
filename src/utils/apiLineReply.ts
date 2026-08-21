@@ -939,6 +939,35 @@ export const replyUserInfo = async ({
     userTakecarepersonData
 }: ReplyUserData) => {
     try {
+        const caregiverContents = [
+            layoutBoxBaseline('ชื่อ-สกุล', `${userData.users_fname || '-'} ${userData.users_sname || '-'}`),
+            layoutBoxBaseline('ที่อยู่', `${userData.users_number || '-'} หมู่ ${userData.users_moo || '-'}`),
+            layoutBoxBaseline('ถนน', userData.users_road || '-'),
+            layoutBoxBaseline('ตำบล', userData.users_tubon || '-'),
+            layoutBoxBaseline('อำเภอ', userData.users_amphur || '-'),
+            layoutBoxBaseline('จังหวัด', userData.users_province || '-'),
+            layoutBoxBaseline('รหัสไปรษณีย์', userData.users_postcode || '-'),
+            layoutBoxBaseline('เบอร์มือถือ', userData.users_tel1 || '-'),
+            layoutBoxBaseline('เบอร์บ้าน', userData.users_tel_home || '-'),
+        ];
+
+        const dependentContents = userTakecarepersonData ? [
+            layoutBoxBaseline('ชื่อ-สกุล', `${userTakecarepersonData.takecare_fname || '-'} ${userTakecarepersonData.takecare_sname || '-'}`),
+            layoutBoxBaseline('วันเกิด', userTakecarepersonData.takecare_birthday ? moment(userTakecarepersonData.takecare_birthday).format('DD/MM/YYYY') : '-'),
+            layoutBoxBaseline('ที่อยู่', `${userTakecarepersonData.takecare_number || '-'} หมู่ ${userTakecarepersonData.takecare_moo || '-'}`),
+            layoutBoxBaseline('ถนน', userTakecarepersonData.takecare_road || '-'),
+            layoutBoxBaseline('ตำบล', userTakecarepersonData.takecare_tubon || '-'),
+            layoutBoxBaseline('อำเภอ', userTakecarepersonData.takecare_amphur || '-'),
+            layoutBoxBaseline('จังหวัด', userTakecarepersonData.takecare_province || '-'),
+            layoutBoxBaseline('รหัสไปรษณีย์', userTakecarepersonData.takecare_postcode || '-'),
+            layoutBoxBaseline('เบอร์มือถือ', userTakecarepersonData.takecare_tel1 || '-'),
+            layoutBoxBaseline('เบอร์บ้าน', userTakecarepersonData.takecare_tel_home || '-'),
+            layoutBoxBaseline('โรคประจำตัว', userTakecarepersonData.takecare_disease || '-'),
+            layoutBoxBaseline('ยาที่ใช้ประจำ', userTakecarepersonData.takecare_drug || '-'),
+        ] : [
+            layoutBoxBaseline('ข้อมูล', 'ยังไม่ได้เพิ่มข้อมูลผู้มีภาวะพึ่งพิง')
+        ];
+
         const requestData = {
             replyToken,
             messages: [
@@ -952,10 +981,11 @@ export const replyUserInfo = async ({
                             layout: 'vertical',
                             contents: [
                                 { type: 'text', text: 'ข้อมูลผู้ใช้งาน', weight: 'bold', color: '#0000FF', size: 'xl' },
-                                { type: 'text', text: 'ข้อมูลผู้ดูแล', size: 'sm', margin: 'md', color: '#666666' },
-                                { type: 'text', text: `${userData?.users_fname || '-'} ${userData?.users_sname || '-'}`, size: 'sm', color: '#999999' },
-                                { type: 'text', text: 'ข้อมูลผู้มีภาวะพึ่งพิง', size: 'sm', margin: 'md', color: '#666666' },
-                                { type: 'text', text: `${userTakecarepersonData ? `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}` : '-'}`, size: 'sm', color: '#999999' }
+                                { type: 'text', text: 'ข้อมูลผู้ดูแล', size: 'md', margin: 'md', color: '#666666' },
+                                { type: 'box', layout: 'vertical', margin: 'sm', spacing: 'sm', contents: caregiverContents },
+                                { type: 'separator', margin: 'md' },
+                                { type: 'text', text: 'ข้อมูลผู้มีภาวะพึ่งพิง', size: 'md', margin: 'md', color: '#666666' },
+                                { type: 'box', layout: 'vertical', margin: 'sm', spacing: 'sm', contents: dependentContents }
                             ]
                         },
                         footer: {
