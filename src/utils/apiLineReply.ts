@@ -508,124 +508,42 @@ export const replyMainMenu = async ({
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "เมนูทั้งหมดของ AFE PLUS",
+                    type: 'flex',
+                    altText: 'เมนูทั้งหมดของ AFE PLUS',
                     contents: {
-                        type: "carousel",
+                        type: 'carousel',
                         contents: [
                             {
-                                type: "bubble",
+                                type: 'bubble',
                                 body: {
-                                    type: "box",
-                                    layout: "vertical",
+                                    type: 'box',
+                                    layout: 'vertical',
                                     contents: [
-                                        {
-                                            type: "text",
-                                            text: "ฟีเจอร์หลัก",
-                                            weight: "bold",
-                                            size: "xl",
-                                            color: "#1DB446"
-                                        },
-                                        {
-                                            type: "text",
-                                            text: "บริการและอุปกรณ์ Smartwatch",
-                                            size: "xs",
-                                            color: "#aaaaaa",
-                                            margin: "sm"
-                                        }
+                                        { type: 'text', text: 'ฟีเจอร์หลัก', weight: 'bold', size: 'xl', color: '#1DB446' },
+                                        { type: 'text', text: 'บริการและอุปกรณ์ Smartwatch', size: 'xs', color: '#aaaaaa', margin: 'sm' }
                                     ]
                                 },
                                 footer: {
-                                    type: "box",
-                                    layout: "vertical",
-                                    spacing: "sm",
-                                    contents: [
-                                        {
-                                            type: "button",
-                                            style: "primary",
-                                            color: "#1DB446",
-                                            action: {
-                                                type: "message",
-                                                label: "ข้อมูลสุขภาพ & ตำแหน่ง",
-                                                text: "ข้อมูลสุขภาพและตำแหน่ง"
-                                            }
-                                        },
-                                        {
-                                            type: "button",
-                                            style: "primary",
-                                            color: "#1DB446",
-                                            action: {
-                                                type: "message",
-                                                label: "เชื่อมต่อนาฬิกา",
-                                                text: "เชื่อมต่อนาฬิกา"
-                                            }
-                                        },
-                                        {
-                                            type: "button",
-                                            style: "secondary",
-                                            action: {
-                                                type: "message",
-                                                label: "ยืม-คืน",
-                                                text: "การยืม-คืนครุภัณฑ์"
-                                            }
-                                        }
+                                    type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                                        { type: 'button', style: 'primary', color: '#1DB446', action: { type: 'message', label: 'ข้อมูลสุขภาพ & ตำแหน่ง', text: 'ข้อมูลสุขภาพและตำแหน่ง' } },
+                                        { type: 'button', style: 'primary', color: '#1DB446', action: { type: 'message', label: 'เชื่อมต่อนาฬิกา', text: 'เชื่อมต่อนาฬิกา' } },
+                                        { type: 'button', style: 'secondary', action: { type: 'message', label: 'ยืม-คืน', text: 'การยืม-คืนครุภัณฑ์' } }
                                     ]
                                 }
                             },
                             {
-                                type: "bubble",
+                                type: 'bubble',
                                 body: {
-                                    type: "box",
-                                    layout: "vertical",
-                                    contents: [
-                                        {
-                                            type: "text",
-                                            text: "จัดการบัญชี",
-                                            weight: "bold",
-                                            size: "xl",
-                                            color: "#0367D3"
-                                        },
-                                        {
-                                            type: "text",
-                                            text: "ข้อมูลส่วนตัวและการตั้งค่า",
-                                            size: "xs",
-                                            color: "#aaaaaa",
-                                            margin: "sm"
-                                        }
+                                    type: 'box', layout: 'vertical', contents: [
+                                        { type: 'text', text: 'จัดการบัญชี', weight: 'bold', size: 'xl', color: '#0367D3' },
+                                        { type: 'text', text: 'ข้อมูลส่วนตัวและการตั้งค่า', size: 'xs', color: '#aaaaaa', margin: 'sm' }
                                     ]
                                 },
                                 footer: {
-                                    type: "box",
-                                    layout: "vertical",
-                                    spacing: "sm",
-                                    contents: [
-                                        {
-                                            type: "button",
-                                            style: "secondary",
-                                            action: {
-                                                type: "message",
-                                                label: "ข้อมูลผู้ใช้งาน",
-                                                text: "ข้อมูลผู้ใช้งาน"
-                                            }
-                                        },
-                                        {
-                                            type: "button",
-                                            style: "secondary",
-                                            action: {
-                                                type: "message",
-                                                label: "ลงทะเบียน",
-                                                text: "ลงทะเบียน"
-                                            }
-                                        },
-                                        {
-                                            type: "button",
-                                            style: "secondary",
-                                            action: {
-                                                type: "message",
-                                                label: "ตั้งค่าความปลอดภัย",
-                                                text: "ตั้งค่าความปลอดภัย"
-                                            }
-                                        }
+                                    type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                                        { type: 'button', style: 'secondary', action: { type: 'message', label: 'ข้อมูลผู้ใช้งาน', text: 'ข้อมูลผู้ใช้งาน' } },
+                                        { type: 'button', style: 'secondary', action: { type: 'message', label: 'ลงทะเบียน', text: 'ลงทะเบียน' } },
+                                        { type: 'button', style: 'secondary', action: { type: 'message', label: 'ตั้งค่าความปลอดภัย', text: 'ตั้งค่าความปลอดภัย' } }
                                     ]
                                 }
                             }
@@ -653,57 +571,21 @@ export const replyRegistration = async ({
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "ลงทะเบียน",
+                    type: 'flex',
+                    altText: 'ลงทะเบียน',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
-                            contents: [
-                                {
-                                    type: "text",
-                                    text: "ลงทะเบียน",
-                                    weight: "bold",
-                                    color: "#0000FF",
-                                    size: "xl"
-                                },
-                                {
-                                    type: "text",
-                                    text: `🔒 ข้อมูลของคุณจะถูกเก็บรักษาเป็นความลับอย่างปลอดภัย`,
-                                    wrap: true,
-                                    size: "sm",
-                                    margin: "md"
-                                },
-                                {
-                                    type: "text",
-                                    text: `คุณ ${profile.displayName}`,
-                                    size: "sm",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                }
+                            type: 'box', layout: 'vertical', contents: [
+                                { type: 'text', text: 'ลงทะเบียน', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'text', text: '🔒 ข้อมูลของคุณจะถูกเก็บรักษาเป็นความลับอย่างปลอดภัย', wrap: true, size: 'sm', margin: 'md' },
+                                { type: 'text', text: `คุณ ${profile?.displayName || ''}`, size: 'sm', color: '#555555', wrap: true, margin: 'sm' }
                             ]
                         },
-                        footer: {
-                            type: "box",
-                            layout: "vertical",
-                            contents: [
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    color: "#00C300",
-                                    action: {
-                                        type: "uri",
-                                        label: "กดเพื่อลงทะเบียน",
-                                        uri: `${WEB_API}/registration?auToken=${userId}`
-                                    }
-                                }
-                            ]
-                        }
+                        footer: { type: 'box', layout: 'vertical', contents: [ { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'กดเพื่อลงทะเบียน', uri: `${WEB_API}/registration?auToken=${userId}` } } ] }
                     }
                 }
-            ],
+            ]
         };
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
     } catch (error) {
@@ -723,49 +605,23 @@ export const replyNotRegistration = async ({
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "ลงทะเบียน",
+                    type: 'flex',
+                    altText: 'ลงทะเบียน',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
+                            type: 'box',
+                            layout: 'vertical',
                             contents: [
-                                {
-                                    type: "text",
-                                    text: "ลงทะเบียน",
-                                    weight: "bold",
-                                    color: "#0000FF",
-                                    size: "xl"
-                                },
-                                {
-                                    type: "text",
-                                    text: `คุณ ${profile.displayName} ยังไม่ได้ลงทะเบียน กรุณาลงทะเบียนก่อนเข้าใช้งาน`,
-                                    wrap: true,
-                                    size: "sm",
-                                    margin: "md"
-                                }
+                                { type: 'text', text: 'ลงทะเบียน', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'text', text: '🔒 ข้อมูลของคุณจะถูกเก็บรักษาเป็นความลับอย่างปลอดภัย', wrap: true, size: 'sm', margin: 'md' },
+                                { type: 'text', text: `คุณ ${profile?.displayName || ''}`, size: 'sm', color: '#555555', wrap: true, margin: 'sm' }
                             ]
                         },
-                        footer: {
-                            type: "box",
-                            layout: "vertical",
-                            contents: [
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    color: "#00C300",
-                                    action: {
-                                        type: "uri",
-                                        label: "กดเพื่อลงทะเบียน",
-                                        uri: `${WEB_API}/registration?auToken=${userId}`
-                                    }
-                                }
-                            ]
-                        }
+                        footer: { type: 'box', layout: 'vertical', contents: [ { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'กดเพื่อลงทะเบียน', uri: `${WEB_API}/registration?auToken=${userId}` } } ] }
                     }
                 }
-            ],
+            ]
         };
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
     } catch (error) {
@@ -775,78 +631,40 @@ export const replyNotRegistration = async ({
     }
 }
 
-export const replyMenuBorrowequipment = async ({
-    replyToken,
-    userData
-}: ReplyUserData) => {
+export const replyMenuBorrowequipment = async ({ replyToken, userData }: ReplyUserData) => {
     try {
         const profile = await getUserProfile(userData.users_line_id);
         const requestData = {
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "การยืม การคืนครุภัณฑ์",
+                    type: 'flex',
+                    altText: 'การยืม-คืนครุภัณฑ์',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
+                            type: 'box',
+                            layout: 'vertical',
                             contents: [
-                                {
-                                    type: "text",
-                                    text: "การยืม การคืนครุภัณฑ์",
-                                    color: "#FFB400",
-                                    size: "xl",
-                                    weight: "bold",
-                                    wrap: true
-                                },
-                                {
-                                    type: "text",
-                                    text: `คุณ ${profile.displayName}`,
-                                    size: "sm",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    action: {
-                                        type: "uri",
-                                        label: "การยืมครุภัณฑ์",
-                                        uri: `${WEB_API}/borrowequipment/borrow?auToken=${userData.users_line_id}`
-                                    }
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    color: "#4477CE",
-                                    action: {
-                                        type: "uri",
-                                        label: "การคืนครุภัณฑ์",
-                                        uri: `${WEB_API}/borrowequipment/return_of?auToken=${userData.users_line_id}`
-                                    }
-                                },
+                                { type: 'text', text: 'การยืม-คืนครุภัณฑ์', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'text', text: `คุณ ${profile?.displayName || ''}`, size: 'sm', color: '#555555', margin: 'sm' },
+                                { type: 'separator', margin: 'md' },
+                                { type: 'text', text: 'เลือกตัวเลือกด้านล่างเพื่อดำเนินการ', size: 'sm', color: '#666666', margin: 'md' }
+                            ]
+                        },
+                        footer: {
+                            type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                                { type: 'button', style: 'primary', color: '#1976D2', action: { type: 'uri', label: 'ยืมครุภัณฑ์', uri: `${WEB_API}/borrowequipment/borrow?auToken=${userData.users_line_id}` } },
+                                { type: 'button', style: 'primary', color: '#4477CE', action: { type: 'uri', label: 'คืนครุภัณฑ์', uri: `${WEB_API}/borrowequipment/return_of?auToken=${userData.users_line_id}` } }
                             ]
                         }
                     }
                 }
-            ],
+            ]
         };
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
     } catch (error) {
-        if (error instanceof Error) {
-            console.log(error.message);
-        }
+        if (error instanceof Error) console.log('replyMenuBorrowequipment error:', error.message);
     }
 }
 export const replyConnection = async ({
@@ -999,97 +817,36 @@ export const replyLocation = async ({
         const tempColor = lastTemp?.status === 1 ? '#E11D48' : '#0EA5E9'; // แดงถ้าผิดปกติ, ฟ้าเมื่อปกติ
         const hrColor = lastHR?.status === 1 ? '#E11D48' : '#10B981';   // แดงถ้าผิดปกติ, เขียวเมื่อปกติ
 
+        const mapImageUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${latitude},${longitude}&zoom=15&size=600x390&markers=color:red%7C${latitude},${longitude}&key=${process.env.GOOGLE_MAPS_API_KEY || ''}`;
         const requestData = {
             replyToken,
             messages: [
-                // แผนที่ตำแหน่ง (ข้อความประเภท location เพิ่มอะไรไม่ได้)
                 {
                     type: 'location',
-                    title: `ตำแหน่งปัจจุบันของผู้ที่มีภาวะพึ่งพิง ${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}`,
+                    title: `ตำแหน่งปัจจุบันของผู้ที่มีภาวะพึ่งพิง ${userTakecarepersonData?.takecare_fname || ''} ${userTakecarepersonData?.takecare_sname || ''}`,
                     address: 'สถานที่ตั้งปัจจุบันของผู้ที่มีภาวะพึ่งพิง',
                     latitude,
                     longitude
                 },
-                // Flex การ์ดรายละเอียด + Vitals ดีไซน์ใหม่
                 {
                     type: 'flex',
-                    altText: 'ข้อมูลตำแหน่งและสุขภาพ',
+                    altText: 'ตำแหน่งและข้อมูลสุขภาพ',
                     contents: {
                         type: 'bubble',
+                        hero: { type: 'image', url: mapImageUrl, size: 'full', aspectRatio: '20:13', aspectMode: 'cover' },
                         body: {
-                            type: 'box',
-                            layout: 'vertical',
-                            paddingAll: '16px',
-                            spacing: '12px',
-                            contents: [
-                                {
-                                    type: 'text',
-                                    text: 'ข้อมูลผู้มีภาวะพึ่งพิง',
-                                    color: '#111111',
-                                    size: 'xl',
-                                    weight: 'bold'
-                                },
-                                {
-                                    type: 'box',
-                                    layout: 'vertical',
-                                    spacing: '6px',
-                                    contents: [
-                                        baseline('ชื่อ-สกุล', `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}`),
-                                        baseline('Latitude', String(latitude)),
-                                        baseline('Longitude', String(longitude))
-                                    ]
-                                },
-                                { type: 'separator', margin: 'md' },
-
-                                // แถว KPI vitals (สวยและอ่านง่าย)
-                                {
-                                    type: 'box',
-                                    layout: 'horizontal',
-                                    spacing: '12px',
-                                    contents: [
-                                        kpiBox('อุณหภูมิ', tempVal, '°C', tempColor),
-                                        kpiBox('ชีพจร', hrVal, 'bpm', hrColor)
-                                    ]
-                                },
-
-                                // ปุ่มต่าง ๆ
-                                {
-                                    type: 'box',
-                                    layout: 'vertical',
-                                    spacing: '10px',
-                                    margin: 'lg',
-                                    contents: [
-                                        {
-                                            type: 'button',
-                                            style: 'primary',
-                                            color: '#4477CE',
-                                            height: 'sm',
-                                            action: userTakecarepersonData.takecare_tel1 ? {
-                                                type: 'uri',
-                                                label: `โทร ${userTakecarepersonData.takecare_tel1}`,
-                                                uri: `tel:${userTakecarepersonData.takecare_tel1}`
-                                            }
-                                                : {
-                                                    type: 'message',
-                                                    label: 'โทร',
-                                                    text: 'ไม่มีข้อมูลเบอร์โทรศัพท์ของผู้มีภาวะพึ่งพิง'
-                                                }
-                                        },
-
-                                        {
-                                            type: 'button',
-                                            style: 'primary',
-                                            height: 'sm',
-                                            action: {
-                                                type: 'uri',
-                                                label: 'ดูแผนที่จากระบบ',
-                                                uri: `${WEB_API}/location?auToken=${userData.users_line_id}&idsafezone=${safezoneData.safezone_id}&idlocation=${locationData ? locationData.location_id : ''}`
-                                            }
-                                        }
-                                    ]
-                                }
+                            type: 'box', layout: 'vertical', contents: [
+                                { type: 'text', text: 'ตำแหน่งปัจจุบัน', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'box', layout: 'horizontal', margin: 'md', contents: [ { type: 'text', text: 'ชื่อ-สกุล', size: 'sm', flex: 2, color: '#666666' }, { type: 'text', text: `${userTakecarepersonData?.takecare_fname || ''} ${userTakecarepersonData?.takecare_sname || ''}`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'Latitude', size: 'sm', flex: 2, color: '#666666' }, { type: 'text', text: `${latitude}`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'Longitude', size: 'sm', flex: 2, color: '#666666' }, { type: 'text', text: `${longitude}`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', margin: 'lg', spacing: 'sm', contents: [
+                                    { type: 'box', layout: 'vertical', backgroundColor: '#F8F9FA', cornerRadius: 'md', paddingAll: 'md', alignItems: 'center', contents: [ { type: 'text', text: 'อุณหภูมิ', size: 'sm' }, { type: 'text', text: tempVal, size: 'xxl', weight: 'bold', color: '#00C300' }, { type: 'text', text: 'องศา', size: 'xs' } ] },
+                                    { type: 'box', layout: 'vertical', backgroundColor: '#F8F9FA', cornerRadius: 'md', paddingAll: 'md', alignItems: 'center', contents: [ { type: 'text', text: 'ชีพจร', size: 'sm' }, { type: 'text', text: hrVal, size: 'xxl', weight: 'bold', color: '#00C300' }, { type: 'text', text: 'ครั้งต่อนาที', size: 'xs' } ] }
+                                ] }
                             ]
-                        }
+                        },
+                        footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: [ { type: 'button', style: 'primary', color: '#00C300', action: userTakecarepersonData?.takecare_tel1 ? { type: 'uri', label: `โทร ${userTakecarepersonData.takecare_tel1}`, uri: `tel:${userTakecarepersonData.takecare_tel1}` } : { type: 'message', label: 'โทร', text: 'ไม่มีข้อมูลเบอร์โทรศัพท์ของผู้มีภาวะพึ่งพิง' } }, { type: 'button', style: 'primary', color: '#888888', action: { type: 'uri', label: 'ดูแผนที่จากระบบ', uri: `${WEB_API}/location?auToken=${userData.users_line_id}&idsafezone=${safezoneData?.safezone_id || ''}&idlocation=${locationData ? locationData.location_id : ''}` } } ] }
                     }
                 }
             ]
@@ -1140,109 +897,27 @@ export const replySetting = async ({
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "ตั้งค่าความปลอดภัย",
+                    type: 'flex',
+                    altText: 'ตั้งค่าความปลอดภัย',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
+                            type: 'box',
+                            layout: 'vertical',
                             contents: [
-                                {
-                                    type: "text",
-                                    text: "ตั้งค่าความปลอดภัย",
-                                    color: "#FFB400",
-                                    size: "xl",
-                                    weight: "bold",
-                                    wrap: true
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        {
-                                            type: "box",
-                                            layout: "baseline",
-                                            contents: [
-                                                { type: "text", text: "ชื่อ", flex: 2, weight: "bold" },
-                                                { type: "text", text: `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}`, flex: 3, wrap: true }
-                                            ]
-                                        },
-                                        {
-                                            type: "box",
-                                            layout: "baseline",
-                                            contents: [
-                                                { type: "text", text: "รัศมี ชั้นที่ 1", flex: 2, weight: "bold" },
-                                                { type: "text", text: `${r1} เมตร`, flex: 3 }
-                                            ]
-                                        },
-                                        {
-                                            type: "box",
-                                            layout: "baseline",
-                                            contents: [
-                                                { type: "text", text: "รัศมี ชั้นที่ 2", flex: 2, weight: "bold" },
-                                                { type: "text", text: `${r2} เมตร`, flex: 3 }
-                                            ]
-                                        },
-                                        {
-                                            type: "box",
-                                            layout: "baseline",
-                                            contents: [
-                                                { type: "text", text: "อุณหภูมิ", flex: 2, weight: "bold" },
-                                                { type: "text", text: `${maxTemperature} องศา`, flex: 3 }
-                                            ]
-                                        },
-                                        {
-                                            type: "box",
-                                            layout: "baseline",
-                                            contents: [
-                                                { type: "text", text: "ชีพจร", flex: 2, weight: "bold" },
-                                                { type: "text", text: `${maxBpm} ครั้งต่อนาที`, flex: 3 }
-                                            ]
-                                        }
-                                    ]
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    action: {
-                                        type: "uri",
-                                        label: "ตั้งค่าเขตปลอดภัย",
-                                        uri: `${WEB_API}/setting?auToken=${userData.users_line_id}&idsafezone=${idsafezone}`
-                                    }
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    color: "#4477CE",
-                                    action: {
-                                        type: "uri",
-                                        label: "ตั้งค่าอุณหภูมิร่างกาย",
-                                        uri: `${WEB_API}/settingTemp?auToken=${userData.users_line_id}&idsetting=${idSetting || ''}`
-                                    }
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    color: "#60C4A9",
-                                    action: {
-                                        type: "uri",
-                                        label: "ตั้งค่าชีพจร",
-                                        uri: `${WEB_API}/settingHeartRate?auToken=${userData.users_line_id}&idsetting=${idSettingHR || ''}`
-                                    }
-                                }
+                                { type: 'text', text: 'ตั้งค่าความปลอดภัย', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'box', layout: 'horizontal', margin: 'lg', contents: [ { type: 'text', text: 'ชื่อ', size: 'sm', flex: 2 }, { type: 'text', text: `${userTakecarepersonData?.takecare_fname || '-'} ${userTakecarepersonData?.takecare_sname || '-'}`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'เขตปลอดภัยที่ 1', size: 'sm', flex: 2 }, { type: 'text', text: `${r1} เมตร`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'เขตปลอดภัยที่ 2', size: 'sm', flex: 2 }, { type: 'text', text: `${r2} เมตร`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'อุณหภูมิ', size: 'sm', flex: 2 }, { type: 'text', text: `${maxTemperature} องศา`, size: 'sm', flex: 3 } ] },
+                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'ชีพจร', size: 'sm', flex: 2 }, { type: 'text', text: `${maxBpm} ครั้งต่อนาที`, size: 'sm', flex: 3 } ] }
+                            ],
+                        },
+                        footer: {
+                            type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าเขตปลอดภัย', uri: `${WEB_API}/setting?auToken=${userData.users_line_id}&idsafezone=${idsafezone}` } },
+                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าอุณหภูมิร่างกาย', uri: `${WEB_API}/settingTemp?auToken=${userData.users_line_id}&idsetting=${idSetting || ''}` } },
+                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าชีพจร', uri: `${WEB_API}/settingHeartRate?auToken=${userData.users_line_id}&idsetting=${idSettingHR || ''}` } }
                             ]
                         }
                     }
@@ -1264,132 +939,34 @@ export const replyUserInfo = async ({
     userTakecarepersonData
 }: ReplyUserData) => {
     try {
-        // const profile = await getUserProfile(userData.users_line_id);
-        let contentTakecareperson = [
-            layoutBoxBaseline("ข้อมูล", 'ยังไม่ได้เพิ่มข้อมูลผู้มีภาวะพึ่งพิง'),
-        ]
-
-        if (userTakecarepersonData) {
-            contentTakecareperson = [
-                layoutBoxBaseline("ชื่อ-สกุล", `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}`, 4, 5),
-                layoutBoxBaseline("วันเดือนปีเกิด", `${moment(userTakecarepersonData.takecare_birthday).format('DD/MM/YYYY')}`, 4, 5),
-                layoutBoxBaseline("ที่อยู่", `${userTakecarepersonData.takecare_number || '-'} หมู่ ${userTakecarepersonData.takecare_moo || '-'}`, 4, 5),
-                layoutBoxBaseline("ถนน", `${userTakecarepersonData.takecare_road || '-'}`, 4, 5),
-                layoutBoxBaseline("ตำบล", `${userTakecarepersonData.takecare_tubon || '-'}`, 4, 5),
-                layoutBoxBaseline("อำเภอ", `${userTakecarepersonData.takecare_amphur || '-'}`, 4, 5),
-                layoutBoxBaseline("จังหวัด", `${userTakecarepersonData.takecare_province || '-'}`, 4, 5),
-                layoutBoxBaseline("รหัสไปรษณีย์", `${userTakecarepersonData.takecare_postcode || '-'}`, 4, 5),
-                layoutBoxBaseline("เบอร์โทรศัพท์มือถือ", `${userTakecarepersonData.takecare_tel1 || '-'}`, 4, 5),
-                layoutBoxBaseline("เบอร์โทรศัพท์บ้าน", `${userTakecarepersonData.takecare_tel_home || '-'}`, 4, 5),
-                layoutBoxBaseline("โรคประจำตัว", `${userTakecarepersonData.takecare_disease || '-'}`, 4, 5),
-                layoutBoxBaseline("ยาที่ใช้ประจำ", `${userTakecarepersonData.takecare_drug || '-'}`, 4, 5),
-            ]
-        }
-
         const requestData = {
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "ข้อมูลผู้ใช้งาน",
+                    type: 'flex',
+                    altText: 'ข้อมูลผู้ใช้งาน',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
+                            type: 'box',
+                            layout: 'vertical',
                             contents: [
-                                {
-                                    type: "text",
-                                    text: "ข้อมูลผู้ใช้งาน",
-                                    color: "#FFB400",
-                                    size: "xl",
-                                    weight: "bold",
-                                    wrap: true
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "text",
-                                    text: `ข้อมูลผู้ดูแล`,
-                                    size: "md",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        layoutBoxBaseline("ชื่อ-สกุล", `${userData.users_fname} ${userData.users_sname}`, 4, 5),
-                                        layoutBoxBaseline("ที่อยู่", `${userData.users_number || '-'} หมู่ ${userData.users_moo || '-'}`, 4, 5),
-                                        layoutBoxBaseline("ถนน", `${userData.users_road || '-'}`, 4, 5),
-                                        layoutBoxBaseline("ตำบล", `${userData.users_tubon || '-'}`, 4, 5),
-                                        layoutBoxBaseline("อำเภอ", `${userData.users_amphur || '-'}`, 4, 5),
-                                        layoutBoxBaseline("จังหวัด", `${userData.users_province || '-'}`, 4, 5),
-                                        layoutBoxBaseline("รหัสไปรษณีย์", `${userData.users_postcode || '-'}`, 4, 5),
-                                        layoutBoxBaseline("เบอร์โทรศัพท์มือถือ", `${userData.users_tel1 || '-'}`, 4, 5),
-                                        layoutBoxBaseline("เบอร์โทรศัพท์บ้าน", `${userData.users_tel_home || '-'}`, 4, 5),
-                                    ]
-
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "text",
-                                    text: `ข้อมูลผู้ที่มีภาวะพึ่งพิง`,
-                                    size: "md",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        ...contentTakecareperson
-                                    ]
-
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    action: {
-                                        type: "uri",
-                                        label: "ตั้งค่าข้อมูลผู้ดูแล",
-                                        uri: `${WEB_API}/userinfo/cuserinfo?auToken=${userData.users_line_id}`
-                                    },
-
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    color: "#4477CE",
-                                    action: {
-                                        type: "uri",
-                                        label: "ตั้งค่าข้อมูลผู้มีภาวะพึ่งพิง",
-                                        uri: userTakecarepersonData ? `${WEB_API}/userinfo/puserinfo?auToken=${userData.users_line_id}` : `${WEB_API}/elderly_registration?auToken=${userData.users_line_id}`
-                                    }
-                                }
-
+                                { type: 'text', text: 'ข้อมูลผู้ใช้งาน', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'text', text: 'ข้อมูลผู้ดูแล', size: 'sm', margin: 'md', color: '#666666' },
+                                { type: 'text', text: `${userData?.users_fname || '-'} ${userData?.users_sname || '-'}`, size: 'sm', color: '#999999' },
+                                { type: 'text', text: 'ข้อมูลผู้มีภาวะพึ่งพิง', size: 'sm', margin: 'md', color: '#666666' },
+                                { type: 'text', text: `${userTakecarepersonData ? `${userTakecarepersonData.takecare_fname} ${userTakecarepersonData.takecare_sname}` : '-'}`, size: 'sm', color: '#999999' }
+                            ]
+                        },
+                        footer: {
+                            type: 'box', layout: 'vertical', spacing: 'sm', contents: [
+                                { type: 'button', style: 'primary', color: '#0000CC', action: { type: 'uri', label: 'ตั้งค่าข้อมูลผู้ดูแล', uri: `${WEB_API}/userinfo/cuserinfo?auToken=${userData.users_line_id}` } },
+                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าข้อมูลผู้มีภาวะพึ่งพิง', uri: userTakecarepersonData ? `${WEB_API}/userinfo/puserinfo?auToken=${userData.users_line_id}` : `${WEB_API}/elderly_registration?auToken=${userData.users_line_id}` } }
                             ]
                         }
                     }
                 }
-            ],
+            ]
         };
 
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
@@ -1411,71 +988,34 @@ export const replyUserData = async ({
             replyToken,
             messages: [
                 {
-                    type: "flex",
-                    altText: "ลงทะเบียน",
+                    type: 'flex',
+                    altText: 'ข้อมูลลงทะเบียน',
                     contents: {
-                        type: "bubble",
+                        type: 'bubble',
                         body: {
-                            type: "box",
-                            layout: "vertical",
+                            type: 'box',
+                            layout: 'vertical',
                             contents: [
-                                {
-                                    type: "text",
-                                    text: "ข้อมูลลงทะเบียน",
-                                    color: "#FFB400",
-                                    size: "xl",
-                                    weight: "bold",
-                                    wrap: true
-                                },
-                                {
-                                    type: "text",
-                                    text: `คุณ ${profile.displayName}`,
-                                    size: "sm",
-                                    color: "#555555",
-                                    wrap: true,
-                                    margin: "sm"
-                                },
-                                {
-                                    type: "separator",
-                                    margin: "xxl"
-                                },
-                                {
-                                    type: "box",
-                                    layout: "vertical",
-                                    margin: "xxl",
-                                    spacing: "sm",
-                                    contents: [
-                                        layoutBoxBaseline("ชื่อ", `${userData.users_fname} ${userData.users_sname}`),
-                                        layoutBoxBaseline("Pin", userData.users_pin.toString()),
-                                        layoutBoxBaseline("สถานะ", userData.users_status_id.status_name),
-                                        layoutBoxBaseline("ที่อยู่", `${userData.users_number || '-'} หมู่ ${userData.users_moo || '-'}`),
-                                        layoutBoxBaseline("ถนน", `${userData.users_road || '-'}`),
-                                        layoutBoxBaseline("ตำบล", `${userData.users_tubon || '-'}`),
-                                        layoutBoxBaseline("อำเภอ", `${userData.users_amphur || '-'}`),
-                                        layoutBoxBaseline("จังหวัด", `${userData.users_province || '-'}`),
-                                        layoutBoxBaseline("รหัสไปรษณีย์", `${userData.users_postcode || '-'}`),
-                                        layoutBoxBaseline("เบอร์โทรศัพท์มือถือ", `${userData.users_tel1 || '-'}`),
-                                        layoutBoxBaseline("เบอร์โทรศัพท์บ้าน", `${userData.users_tel_home || '-'}`),
-                                        //layoutBoxBaseline("LINE ID", userData.users_line_id),
-                                    ]
-
-                                },
-                                {
-                                    type: "button",
-                                    style: "primary",
-                                    height: "sm",
-                                    margin: "xxl",
-                                    action: {
-                                        type: "uri",
-                                        label: "ลงทะเบียนผู้มีภาวะพึ่งพิง",
-                                        uri: `${WEB_API}/elderly_registration?auToken=${userData.users_line_id}`
-                                    }
-                                },
+                                { type: 'text', text: 'ข้อมูลลงทะเบียน', weight: 'bold', color: '#0000FF', size: 'xl' },
+                                { type: 'text', text: `คุณ ${profile?.displayName || ''}`, size: 'sm', color: '#555555', margin: 'sm' },
+                                { type: 'separator', margin: 'md' },
+                                { type: 'box', layout: 'vertical', margin: 'md', spacing: 'sm', contents: [
+                                    layoutBoxBaseline('ชื่อ', `${userData.users_fname} ${userData.users_sname}`),
+                                    layoutBoxBaseline('Pin', String(userData.users_pin || '-')),
+                                    layoutBoxBaseline('สถานะ', userData.users_status_id?.status_name || '-'),
+                                    layoutBoxBaseline('ที่อยู่', `${userData.users_number || '-'} หมู่ ${userData.users_moo || '-'}`),
+                                    layoutBoxBaseline('ตำบล', `${userData.users_tubon || '-'}`),
+                                    layoutBoxBaseline('อำเภอ', `${userData.users_amphur || '-'}`),
+                                    layoutBoxBaseline('จังหวัด', `${userData.users_province || '-'}`),
+                                    layoutBoxBaseline('รหัสไปรษณีย์', `${userData.users_postcode || '-'}`),
+                                    layoutBoxBaseline('เบอร์มือถือ', `${userData.users_tel1 || '-'}`),
+                                ] },
                             ]
-                        }
+                        },
+                        footer: { type: 'box', layout: 'vertical', spacing: 'sm', contents: [ { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ลงทะเบียนผู้มีภาวะพึ่งพิง', uri: `${WEB_API}/elderly_registration?auToken=${userData.users_line_id}` } } ] }
                     }
                 }
-            ],
+            ]
         };
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
     } catch (error) {
