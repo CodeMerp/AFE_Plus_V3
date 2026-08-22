@@ -17,12 +17,7 @@ export default withAesDecrypt(withRls(
             try {
                 const body = req.body;
 
-                console.log('========== SEND TEMPERATURE ==========');
-                console.log('Request body:', body);
-                console.log('uId:', body?.uId);
-                console.log('takecare_id:', body?.takecare_id);
-                console.log('temperature_value:', body?.temperature_value);
-                console.log('status:', body?.status);
+                console.log(`🌡️ TEMPERATURE | uId: ${body?.uId} | takecare_id: ${body?.takecare_id} | temperature: ${body?.temperature_value}°C | status: ${body?.status}`);
                 
                 if (!body.uId || !body.takecare_id || !body.temperature_value) {
                     return res.status(400).json({ message: 'error', data: 'ไม่พบพารามิเตอร์ uId, takecare_id, temperature_value' });

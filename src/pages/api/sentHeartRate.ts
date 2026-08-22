@@ -17,13 +17,8 @@ export default withAesDecrypt(withRls(
             try {
                 const body = req.body;
 
-                console.log('========== SEND HEART RATE ==========');
-                console.log('Request body:', body);
-                console.log('uId:', body?.uId);
-                console.log('takecare_id:', body?.takecare_id);
-                console.log('bpm:', body?.bpm);
-                console.log('status:', body?.status);
-                
+                console.log(`❤️ HEART RATE | uId: ${body?.uId} | takecare_id: ${body?.takecare_id} | bpm: ${body?.bpm} | status: ${body?.status}`);
+
                 if (!body.uId || !body.takecare_id || !body.bpm) {
                     return res.status(400).json({ message: 'error', data: 'ไม่พบพารามิเตอร์ uId, takecare_id, bpm' });
                 }
