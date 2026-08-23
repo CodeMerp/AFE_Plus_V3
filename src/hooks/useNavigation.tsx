@@ -60,7 +60,13 @@ type NavigationContextType = {
   maneuverRoute: ManeuverRouteSnapshot | null;
   status: 'idle' | 'loading' | 'active' | 'arrived' | 'error';
   routeUxState: RouteUxState;
-  start: (agent: LatLng, target: LatLng, mode?: NavigationMode, gpsAgeMs?: number | null) => Promise<StartResult | void>;
+  start: (
+    agent: LatLng,
+    target: LatLng,
+    mode?: NavigationMode,
+    gpsAgeMs?: number | null,
+    announceFreshStart?: boolean,
+  ) => Promise<StartResult | void>;
   stop: () => void;
   markArrived: () => void;
   clearNavigationSession: (reason?: string) => void;
@@ -72,6 +78,7 @@ type NavigationContextType = {
   routeSourceKey: number; // stable Mapbox Source key — only increments on first route + Mapbox API refetch
   endpointDiagnostics: EndpointDiagnostics | null;
   restoreChecked: boolean;
+  freshStartSequence: number;
 };
 
 const NavigationContext = createContext<NavigationContextType | null>(null);
@@ -218,6 +225,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const [routeSourceKey, setRouteSourceKey] = useState<number>(0);
   const [endpointDiagnostics, setEndpointDiagnostics] = useState<EndpointDiagnostics | null>(null);
   const [restoreChecked, setRestoreChecked] = useState(false);
+  // Observational only: increments after a successful user-visible /init.
+  // Restore and silent server-session replacement never increment it.
+  const [freshStartSequence, setFreshStartSequence] = useState(0);
 
   const navService = useRef(new NavigationService()).current;
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -468,6 +478,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     target: LatLng,
     mode: NavigationMode = 'hybrid',
     gpsAgeMs: number | null = null,
+    announceFreshStart = true,
   ): Promise<StartResult | void> => {
     if (isInitializingRef.current) return;
     isInitializingRef.current = true;
@@ -494,7 +505,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       if ((data as any).error) {
         if ((data as any).rateLimit) {
           console.warn('⚠️ Rate limit exceeded (429), retrying in 2 seconds...');
-          setTimeout(() => start(agent, target, mode), 2000);
+          setTimeout(() => start(agent, target, mode, gpsAgeMs, announceFreshStart), 2000);
           return;
         }
         console.error('❌ Init failed:', (data as any).message || `Status ${(data as any).status}`);
@@ -559,6 +570,9 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       // ✅ บันทึกตำแหน่งเริ่มต้น
       agentRef.current = agent;
       targetRef.current = target;
+      if (announceFreshStart) {
+        setFreshStartSequence((sequence) => sequence + 1);
+      }
 
       return { sessionId: initData.sessionId, pathLen: initData.path.length, applied: true };
     } catch (err) {
@@ -623,7 +637,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
         // ── Session expired → silent re-init ─────────────────────────────────
         if ('sessionExpired' in data && data.sessionExpired) {
-          start(agentRef.current, targetRef.current);
+          start(agentRef.current, targetRef.current, 'hybrid', null, false);
           return;
         }
 
@@ -797,6 +811,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       routeSourceKey,
       endpointDiagnostics,
       restoreChecked,
+      freshStartSequence,
     }}>
       {children}
     </NavigationContext.Provider>
