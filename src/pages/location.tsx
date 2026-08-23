@@ -616,11 +616,18 @@ const Location = () => {
                         <Marker
                             longitude={safezonePos.lng}
                             latitude={safezonePos.lat}
-                            anchor="center"
+                            anchor="bottom"
                         >
-                            <div
-                                aria-label="Safe Zone center"
-                                className="w-4 h-4 rounded-full bg-white border-4 border-[#F2BE22] shadow"
+                            <img
+                                src="https://maps.google.com/mapfiles/kml/pal2/icon10.png"
+                                alt="Safe Zone center"
+                                width={35}
+                                height={35}
+                                style={{
+                                    width: 35,
+                                    height: 35,
+                                    objectFit: 'contain',
+                                }}
                             />
                         </Marker>
                     )}
@@ -697,7 +704,7 @@ const Location = () => {
                     if (info.offset.y > 50) setIsMenuExpanded(false); // ลากลง = ปิด
                     else if (info.offset.y < -50) setIsMenuExpanded(true); // ลากขึ้น = เปิด
                 }}
-                className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] px-6 pt-3 pb-[calc(2rem+env(safe-area-inset-bottom))] touch-none md:hidden"
+                className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] px-6 pt-[12px] pb-[calc(2rem+env(safe-area-inset-bottom))] touch-none md:hidden"
             >
                 <div className="flex flex-col items-center">
                     {/* Handle Bar */}
@@ -716,20 +723,20 @@ const Location = () => {
                                 className="w-full flex flex-col"
                             >
                                 <h3 className="text-[22px] font-bold text-center text-gray-900 mb-6">เลือกรูปแบบการนำทาง</h3>
-                                <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-[12px]">
                                     {/* ปุ่มที่ 1: Google Maps — reuses AFE's existing handleEmergencyNav (Phase 4C-1 item 5) */}
                                     <button
                                         onClick={handleEmergencyNav}
-                                        className="w-full flex items-center p-4 rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition"
+                                        className="w-full flex items-center p-[16px] rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition"
                                     >
-                                        <div className="w-[52px] h-[52px] bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 shrink-0">
+                                        <div className="w-[52px] h-[52px] bg-white rounded-full flex items-center justify-center shadow-[0_1px_3px_0_rgba(0,0,0,0.1),0_1px_2px_-1px_rgba(0,0,0,0.1)] border-[1px] border-solid border-[#F3F4F6] shrink-0">
                                             <img
                                                 src="/google_maps.png"
                                                 alt="Google Maps Icon"
                                                 className="w-7 h-7 object-contain"
                                             />
                                         </div>
-                                        <div className="flex-1 text-left px-4">
+                                        <div className="flex-1 text-left px-[16px]">
                                             <h4 className="font-bold text-[17px] text-gray-900 leading-tight">Google Maps</h4>
                                             <p className="text-[13px] text-gray-500 font-light mt-0.5">ระบบนำทางผ่านแอปพลิเคชันมาตรฐาน</p>
                                         </div>
@@ -745,12 +752,12 @@ const Location = () => {
                                                 e.preventDefault();
                                             }
                                         }}
-                                        className={`w-full flex items-center p-4 rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition ${isStartDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`w-full flex items-center p-[16px] rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition ${isStartDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <div className="w-[52px] h-[52px] bg-[#FFF3E0] rounded-full flex items-center justify-center shrink-0">
                                             <Globe className="text-[#FF9800] w-6 h-6" />
                                         </div>
-                                        <div className="flex-1 text-left px-4">
+                                        <div className="flex-1 text-left px-[16px]">
                                             <h4 className="font-bold text-[17px] text-gray-900 leading-tight">
                                                 {!hasResolvedNavigationIdentity
                                                     ? 'กำลังโหลดข้อมูลผู้ใช้งาน...'
@@ -774,12 +781,12 @@ const Location = () => {
                                         type="button"
                                         onClick={handleMobileAppNative}
                                         disabled={isStartDisabled || !mobileAppNativeHref}
-                                        className={`w-full flex items-center p-4 rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition ${(isStartDisabled || !mobileAppNativeHref) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                        className={`w-full flex items-center p-[16px] rounded-3xl bg-[#F8F9FA] active:scale-[0.98] transition ${(isStartDisabled || !mobileAppNativeHref) ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         <div className="w-[52px] h-[52px] bg-[#E8F0FE] rounded-full flex items-center justify-center shrink-0">
                                             <Navigation className="text-[#4285F4] w-6 h-6" />
                                         </div>
-                                        <div className="flex-1 text-left px-4">
+                                        <div className="flex-1 text-left px-[16px]">
                                             <h4 className="font-bold text-[17px] text-gray-900 leading-tight">Mobile Application</h4>
                                             <p className="text-[13px] text-gray-500 font-light mt-0.5">ระบบนำทางผ่านแอปพลิเคชันบนสมาร์ทโฟน</p>
                                         </div>
@@ -795,7 +802,7 @@ const Location = () => {
                                 exit={{ opacity: 0 }}
                                 onClick={() => setIsMenuExpanded(true)}
                                 disabled={!patientLocation}
-                                className={`w-full flex items-center p-6 rounded-[24px] shadow-lg transition-all active:scale-[0.98]
+                                className={`w-full flex items-center p-6 rounded-[24px] shadow-[0_10px_15px_-3px_var(--tw-shadow-color,rgba(0,0,0,0.1)),0_4px_6px_-4px_var(--tw-shadow-color,rgba(0,0,0,0.1))] transition-all active:scale-[0.98]
                                     ${patientLocation ? 'bg-[#1B5E40] shadow-[#1B5E40]/40' : 'bg-gray-400 cursor-not-allowed'}
                                 `}
                             >
