@@ -477,6 +477,18 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
       const initData = data as any;
 
+      // Backend ARRIVED is a successful terminal state and intentionally has
+      // no renderable route path. Handle it before route-path validation.
+      if (isBackendArrivedResponse(initData)) {
+        agentRef.current = agent;
+        targetRef.current = target;
+        setEta(0);
+        setDistance(0);
+        setStatus('arrived');
+        setRouteUxState('arrived');
+        return;
+      }
+
       // Guard: use shared validator — catches NO_ROUTE, ERROR, path.length < 2
       if (!canApplyRoutePath(initData.path, initData.status)) {
         console.warn('[NAV] ROUTE_APPLY_BLOCKED_INVALID_RESPONSE', {
