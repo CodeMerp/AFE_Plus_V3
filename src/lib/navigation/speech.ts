@@ -6,12 +6,17 @@ export type SpeechUtteranceLike = {
   text: string;
   lang: string;
   voice: SpeechVoiceLike | null;
+  onstart?: () => void;
+  onend?: () => void;
+  onerror?: (e: any) => void;
 };
 
 export type SpeechSynthesisLike = {
   getVoices: () => SpeechVoiceLike[];
   speak: (utterance: SpeechUtteranceLike) => void;
   cancel: () => void;
+  speaking?: boolean;
+  pending?: boolean;
 };
 
 export type SpeechEnvironment = {
@@ -38,33 +43,55 @@ export function selectThaiVoice(voices: SpeechVoiceLike[]): SpeechVoiceLike | nu
 export function createNavigationSpeechDriver(
   environment: SpeechEnvironment | undefined = browserSpeechEnvironment(),
 ): NavigationSpeechDriver {
+  let speakGeneration = 0;
+
   const supported = () => Boolean(
     environment?.speechSynthesis
     && environment.SpeechSynthesisUtterance,
   );
 
   const cancel = () => {
+    speakGeneration++; // invalidate any pending retries
     if (!supported()) return;
     try {
       environment?.speechSynthesis?.cancel();
     } catch {
-      // Browser speech is optional; navigation must continue if the API fails.
+      // Browser speech is optional
     }
   };
 
   const speak = (text: string) => {
     if (!supported() || !environment?.speechSynthesis || !environment.SpeechSynthesisUtterance) return;
     try {
-      const utterance = new environment.SpeechSynthesisUtterance(text);
-      utterance.lang = 'th-TH';
-      const thaiVoice = selectThaiVoice(environment.speechSynthesis.getVoices());
-      if (thaiVoice) utterance.voice = thaiVoice;
+      speakGeneration++;
+      const currentGen = speakGeneration;
 
-      // Navigation events supersede stale queued/current guidance.
+      const attemptSpeak = () => {
+        if (currentGen !== speakGeneration) return; // superseded
+
+        const utterance = new environment.SpeechSynthesisUtterance!(text);
+        utterance.lang = 'th-TH';
+        const thaiVoice = selectThaiVoice(environment.speechSynthesis!.getVoices());
+        if (thaiVoice) utterance.voice = thaiVoice;
+
+        let started = false;
+        utterance.onstart = () => { started = true; };
+        utterance.onerror = () => {
+          // If the utterance errors before starting, it was likely erased by an async WebKit cancel().
+          // We safely retry it if this generation is still the active owner.
+          if (!started && currentGen === speakGeneration) {
+            Promise.resolve().then(attemptSpeak);
+          }
+        };
+
+        environment.speechSynthesis!.speak(utterance);
+      };
+
       environment.speechSynthesis.cancel();
-      environment.speechSynthesis.speak(utterance);
+      
+      attemptSpeak();
     } catch {
-      // Unsupported/partial browser implementations fail silently by policy.
+      // Unsupported/partial implementations fail silently
     }
   };
 

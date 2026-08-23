@@ -193,6 +193,37 @@ assert.deepEqual(handoffOutput.spoken, []);
 
 // Compile-time guard: all formatter inputs are NavigationVoiceEvent variants.
 const eventTypeGuard: NavigationVoiceEvent = { kind: 'START' };
-assert.equal(navigationVoiceEventText(eventTypeGuard), 'เริ่มนำทาง');
+assert.equal(navigationVoiceEventText(eventTypeGuard), 'เริ่มนำทาง');// 21: Safari/WebKit async cancel->speak race condition.
+// If the previous active utterance is canceled, WebKit clears the queue asynchronously.
+// Our adapter must catch the onerror (with no onstart) and safely retry the utterance.
+let raceResolved = false;
+let mockCancelRace = createMockEnvironment([{ lang: 'th-TH' }]);
+let activeRaceUtterances: any[] = [];
+mockCancelRace.environment.speechSynthesis!.speak = (utterance) => {
+  activeRaceUtterances.push(utterance);
+};
+mockCancelRace.environment.speechSynthesis!.speaking = true;
 
-console.log('browser navigation speech deterministic tests: PASS (20 scenarios)');
+const raceDriver = createNavigationSpeechDriver(mockCancelRace.environment);
+// Trigger speak, which will call cancel() because speaking = true.
+raceDriver.speak('race');
+
+// Verify it tried to speak
+assert.equal(activeRaceUtterances.length, 1);
+
+// Simulate the WebKit bug: the queue is asynchronously cleared by the previous cancel().
+// This fires onerror on the new utterance before it starts.
+activeRaceUtterances[0].onerror?.(new Error('canceled'));
+
+// Because we used Promise.resolve().then() to retry, we must wait one microtick.
+Promise.resolve().then(() => {
+  // It should have retried!
+  assert.equal(activeRaceUtterances.length, 2);
+  raceResolved = true;
+});
+
+// We must use a small setTimeout to verify the microtask completed.
+setTimeout(() => {
+  assert.equal(raceResolved, true, 'WebKit race retry failed');
+  console.log('browser navigation speech deterministic tests: PASS (21 scenarios)');
+}, 0);
