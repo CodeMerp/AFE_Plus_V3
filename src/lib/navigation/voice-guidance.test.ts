@@ -189,6 +189,19 @@ result = advanceNavigationVoiceController(state, observeAt(95, {
 assert.equal(result.event, null);
 result = advanceNavigationVoiceController(result.state, observeAt(90));
 assert.equal(result.event, null);
+// Shared Guidance can intentionally withhold a maneuver while route UX owns the
+// presentation. The first observation after ownership returns consumes, but does
+// not speak, any threshold crossed during that gap.
+state = advanceNavigationVoiceController(createNavigationVoiceControllerState(), observeAt(130)).state;
+state = step(state, {
+  guidanceAvailable: false,
+  maneuverPresentationOwned: false,
+  currentManeuver: null,
+}).state;
+result = advanceNavigationVoiceController(state, observeAt(95));
+assert.equal(result.event, null);
+result = advanceNavigationVoiceController(result.state, observeAt(49));
+assert.equal(result.event && 'thresholdM' in result.event ? result.event.thresholdM : null, 50);
 
 // 26: true session replacement resets session-scoped near/arrival and ledgers only.
 state = step(createNavigationVoiceControllerState(), { nearArrival: true }).state;

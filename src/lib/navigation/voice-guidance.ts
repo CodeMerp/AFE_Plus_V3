@@ -31,6 +31,7 @@ export type NavigationVoiceControllerState = {
   lastFreshStartSequence: number;
   nearArrivalConsumed: boolean;
   arrivedConsumed: boolean;
+  maneuverPresentationWasOwned: boolean;
   maneuverLedgers: Record<string, ManeuverThresholdLedger>;
 };
 
@@ -57,6 +58,7 @@ export function createNavigationVoiceControllerState(
     lastFreshStartSequence,
     nearArrivalConsumed: false,
     arrivedConsumed: false,
+    maneuverPresentationWasOwned: false,
     maneuverLedgers: {},
   };
 }
@@ -97,6 +99,7 @@ export function advanceNavigationVoiceController(
         lastFreshStartSequence: previousState.lastFreshStartSequence,
         nearArrivalConsumed: false,
         arrivedConsumed: false,
+        maneuverPresentationWasOwned: false,
         maneuverLedgers: {},
       }
     : {
@@ -138,6 +141,7 @@ export function advanceNavigationVoiceController(
         crossed.length > 0
         && input.guidanceAvailable
         && input.maneuverPresentationOwned
+        && state.maneuverPresentationWasOwned
       ) {
         const thresholdM = crossed[crossed.length - 1];
         maneuverEvent = {
@@ -163,6 +167,8 @@ export function advanceNavigationVoiceController(
     consumeAllThresholds(state.maneuverLedgers);
     arrivedEvent = { kind: 'ARRIVED' };
   }
+
+  state.maneuverPresentationWasOwned = input.maneuverPresentationOwned;
 
   return {
     state,

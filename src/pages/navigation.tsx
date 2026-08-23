@@ -14,6 +14,7 @@ import {
     resolveRouteUxBanner,
     useNavigationGuidance,
 } from "@/hooks/useNavigationGuidance";
+import { useNavigationVoice } from "@/hooks/useNavigationVoice";
 import TopNavigationBanner from "@/components/TopNavigationBanner";
 import CustomCompass from "@/components/CustomCompass";
 import { MotionState, createInitialMotionState } from "@/lib/motion/MotionState";
@@ -748,7 +749,6 @@ function NavigationScreen() {
     const arrivalCandidateStartedAtRef = useRef(0);
     const arrivalCandidateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const hasArrivedRef = useRef(false);
-    const hasSpokenArrivalRef = useRef(false);
     const lastArrivalResetKeyRef = useRef("");
     const initAttemptKeyRef = useRef<string | null>(null);
     const initInFlightRef = useRef(false);
@@ -757,7 +757,7 @@ function NavigationScreen() {
     const [totalDistance, setTotalDistance] = useState(0);
 
     // --- 💡 State สำหรับ MT-D* Lite ---
-    const { path, maneuverRoute, status, routeUxState, sessionId, start, stop, markArrived, eta, distance, updatePositions, routeVersion, routeSourceKey, endpointDiagnostics, restoreChecked } = useNavigation();
+    const { path, maneuverRoute, status, routeUxState, sessionId, start, stop, markArrived, eta, distance, updatePositions, routeVersion, routeSourceKey, endpointDiagnostics, restoreChecked, freshStartSequence } = useNavigation();
     // ── Motion presentation state ───────────────────────────────────────────
 
     // displayAgentPosition: projected agent position on the route — drives marker rendering.
@@ -2866,7 +2866,6 @@ function NavigationScreen() {
         }
         arrivalCandidateStartedAtRef.current = 0;
         hasArrivedRef.current = false;
-        hasSpokenArrivalRef.current = false;
         setHasArrived(false);
         setArrivalDistance(null);
     }, []);
@@ -2932,12 +2931,6 @@ function NavigationScreen() {
                         setArrivalDistance(latestDistanceToTarget);
                         markArrived();
 
-                        if (isSoundOn && !hasSpokenArrivalRef.current && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                            hasSpokenArrivalRef.current = true;
-                            const utterance = new SpeechSynthesisUtterance("ถึงจุดหมายแล้ว");
-                            utterance.lang = "th-TH";
-                            window.speechSynthesis.speak(utterance);
-                        }
                     }
                 }, 3000);
             }
@@ -2951,7 +2944,7 @@ function NavigationScreen() {
                 arrivalCandidateTimeoutRef.current = null;
             }
         }
-    }, [currentPosition, patientLocation, status, markArrived, isSoundOn, hasArrived]);
+    }, [currentPosition, patientLocation, status, markArrived, hasArrived]);
 
     useEffect(() => {
         return () => {
@@ -3047,6 +3040,28 @@ function NavigationScreen() {
     }, [currentPosition, patientLocation, start]);
 
     const routeUxBanner = resolveRouteUxBanner(routeUxState);
+    const maneuverPresentationOwned = routeUxBanner === null
+        && topBannerInstruction.source === 'currentManeuver';
+    const voiceManeuver = guidance.currentManeuver
+        && guidance.instruction
+        && guidance.distanceToManeuverM !== null
+        ? {
+            type: guidance.currentManeuver.maneuver.type,
+            location: guidance.currentManeuver.maneuver.location,
+            instructionText: guidance.instruction,
+            distanceToManeuverM: guidance.distanceToManeuverM,
+        }
+        : null;
+    const { cancelSpeech } = useNavigationVoice({
+        sessionId,
+        freshStartSequence,
+        guidanceAvailable: guidance.availability === 'available',
+        maneuverPresentationOwned,
+        currentManeuver: voiceManeuver,
+        nearArrival: navigationDistanceDisplay.isNearArrival,
+        arrived: status === 'arrived' || hasArrived,
+        soundEnabled: isSoundOn,
+    });
 
     const topBannerManeuverIcon = useMemo(() => {
         if (routeUxBanner || topBannerInstruction.source !== 'currentManeuver') return ArrowUp;
@@ -3597,7 +3612,10 @@ function NavigationScreen() {
                     />
                 </div>
                 <button
-                    onClick={() => setIsSoundOn(!isSoundOn)}
+                    onClick={() => {
+                        if (isSoundOn) cancelSpeech();
+                        setIsSoundOn(!isSoundOn);
+                    }}
                     className="w-[55px] h-[55px] bg-white rounded-full flex items-center justify-center shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)] active:scale-95 transition-transform"
                 >
                     {isSoundOn ? <Volume2 className="text-[#1B5E20] w-[28px] h-[28px]" /> : <VolumeX className="text-gray-500 w-[28px] h-[28px]" />}
