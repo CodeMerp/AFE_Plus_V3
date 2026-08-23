@@ -679,7 +679,7 @@ const Location = () => {
                 </div>
                 {!isCameraCentered && (
                     <div className="absolute bottom-[200px] md:bottom-10 left-5 md:left-10 z-10">
-                        <button onClick={handleCenterCamera} className="flex items-center gap-2 px-5 py-3 bg-white rounded-full shadow-[0_2px_10px_rgba(0,0,0,0.1)] active:scale-95 transition">
+                        <button onClick={handleCenterCamera} className="flex items-center gap-2 px-[20px] py-[12px] bg-white rounded-full shadow-[0_2px_10px_rgba(0,0,0,0.1)] active:scale-95 transition">
                             <Navigation className="text-[#4285F4] w-5 h-5" />
                             <span className="text-gray-800 font-medium">ปรับจุดกลาง</span>
                         </button>
@@ -802,7 +802,7 @@ const Location = () => {
                                 <div className="w-[52px] h-[52px] bg-white/15 rounded-full flex items-center justify-center shrink-0">
                                     <MapPin className="text-white w-7 h-7" />
                                 </div>
-                                <div className="flex-1 text-left px-5">
+                                <div className="flex-1 text-left px-[20px]">
                                     <h2 className="text-white text-[28px] font-bold leading-none">เริ่มนำทาง</h2>
                                 </div>
                                 <ChevronRight className="text-white w-6 h-6 shrink-0" />
