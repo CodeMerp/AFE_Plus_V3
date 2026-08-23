@@ -54,7 +54,16 @@ import {
   withUpdateResponseDefaults,
   type NavPathTruthInput,
 } from '@/lib/navigation/response-contract';
-import type { UpdateResponse, SessionData, Coordinate, NavMetric, NavDistanceMode, PathJumpTrace } from '@/lib/navigation/types';
+import { maneuversForPath } from '@/lib/navigation/maneuver.extractor';
+import type {
+  UpdateResponse,
+  SessionData,
+  Coordinate,
+  GraphEdge,
+  NavMetric,
+  NavDistanceMode,
+  PathJumpTrace,
+} from '@/lib/navigation/types';
 
 const log = createLogger('api/navigate/update');
 // Agent off-route corridor threshold (M4-D2/M4-D3) — env-configurable product/UX
@@ -160,6 +169,7 @@ async function refetchRoute(
   pathUsesSparseGeometry: boolean;
   sparseGeometryMaxJumpM: number | null;
   sparseGeometryEdgeCount: number;
+  selectedEdges: GraphEdge[];
 }> {
   log.info({ sessionId: session.sessionId, reason, targetPos, radiusM: TARGET_GRAPH_RADIUS_M }, 'REFETCH_TARGET_GRAPH_START');
 
@@ -172,7 +182,9 @@ async function refetchRoute(
   ]);
 
   const allResponses = [...mbResponses, ...targetGraph.rays];
-  const newGraph = buildCorridorGraph(allResponses, agentPos, targetPos);
+  const newGraph = buildCorridorGraph(allResponses, agentPos, targetPos, {
+    targetRayResponseStartIndex: mbResponses.length,
+  });
 
   log.info({
     sessionId:           session.sessionId,
@@ -197,6 +209,7 @@ async function refetchRoute(
       pathUsesSparseGeometry: false,
       sparseGeometryMaxJumpM: null,
       sparseGeometryEdgeCount: 0,
+      selectedEdges: [],
     };
   }
 
@@ -226,6 +239,7 @@ async function refetchRoute(
         pathUsesSparseGeometry: false,
         sparseGeometryMaxJumpM: null,
         sparseGeometryEdgeCount: 0,
+        selectedEdges: [],
       };
     }
 
@@ -245,6 +259,7 @@ async function refetchRoute(
         pathUsesSparseGeometry: false,
         sparseGeometryMaxJumpM: null,
         sparseGeometryEdgeCount: 0,
+        selectedEdges: [],
       };
     }
     log.info({
@@ -263,7 +278,10 @@ async function refetchRoute(
   const ok = planner.computePath();
 
   // extractPath maps graph edges → road geometry — path must be pure road geometry
-  let path = ok ? planner.extractPath() : [];
+  const selectedTraversal = ok
+    ? planner.extractPathWithEdges()
+    : { path: [], edges: [] };
+  let path = selectedTraversal.path;
   let responsePathSource: 'planner_prepared' | 'error_empty' | 'refetch_planner_failed_no_fallback' =
     ok && path.length >= 2 ? 'planner_prepared' : 'error_empty';
 
@@ -323,6 +341,7 @@ async function refetchRoute(
     pathUsesSparseGeometry:  usingPlannerPath ? sparseMeta.pathUsesSparseGeometry  : false,
     sparseGeometryMaxJumpM:  usingPlannerPath ? sparseMeta.sparseGeometryMaxJumpM   : null,
     sparseGeometryEdgeCount: usingPlannerPath ? sparseMeta.sparseGeometryEdgeCount  : 0,
+    selectedEdges: usingPlannerPath ? selectedTraversal.edges : [],
   };
 }
 
@@ -798,6 +817,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           return json({
             success: responseSuccess,
             path: responseSuccess ? prepared.path : [],
+            maneuvers: responseSuccess
+              ? maneuversForPath(result.selectedEdges, prepared.path)
+              : [],
             totalCost: Math.round(preparedCost),
             status: refetchStatus,
             suggestedPollIntervalMs: pollMs,
@@ -1077,6 +1099,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return json({
           success: responseSuccess,
           path: responseSuccess ? prepared.path : [],
+          maneuvers: responseSuccess
+            ? maneuversForPath(result.selectedEdges, prepared.path)
+            : [],
           totalCost: Math.round(preparedCost),
           status: refetchStatus,
           suggestedPollIntervalMs: pollMs,
@@ -1283,6 +1308,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return json({
           success: responseSuccess,
           path: responseSuccess ? prepared.path : [],
+          maneuvers: responseSuccess
+            ? maneuversForPath(result.selectedEdges, prepared.path)
+            : [],
           totalCost: Math.round(preparedCost),
           status: refetchStatus,
           suggestedPollIntervalMs: pollMs,
@@ -1515,6 +1543,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const planner = MTDStarLitePlanner.deserialize(session.graph, session.plannerState);
     const stepStart = Date.now();
     const result = planner.step(aId, tId, costChanges);
+    const selectedTraversal = result.success
+      ? planner.extractPathWithEdges()
+      : { path: [], edges: [] };
+    const selectedEdges =
+      selectedTraversal.path.length === result.path.length &&
+      selectedTraversal.path.every((point, index) =>
+        point.lat === result.path[index].lat && point.lng === result.path[index].lng)
+      ? selectedTraversal.edges
+      : [];
     const stepMs = Date.now() - stepStart;
     truthPlannerAttempted = true;
     truthPlannerSucceeded = result.success && result.path.length >= 2;
@@ -1682,6 +1719,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return json({
           success: responseSuccess,
           path: responseSuccess ? prepared.path : [],
+          maneuvers: responseSuccess
+            ? maneuversForPath(refetch.selectedEdges, prepared.path)
+            : [],
           totalCost: Math.round(preparedCost),
           status: refetchStatus,
           suggestedPollIntervalMs: pollMs,
@@ -2094,6 +2134,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return json({
           success: responseSuccess,
           path: responseSuccess ? prepared.path : [],
+          maneuvers: responseSuccess
+            ? maneuversForPath(refetch.selectedEdges, prepared.path)
+            : [],
           totalCost: Math.round(preparedCost),
           status: refetchStatus,
           suggestedPollIntervalMs: pollMs,
@@ -2426,6 +2469,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return json({
           success: responseSuccess,
           path: responseSuccess ? prepared.path : [],
+          maneuvers: responseSuccess
+            ? maneuversForPath(refetch.selectedEdges, prepared.path)
+            : [],
           totalCost: Math.round(preparedCost),
           status: refetchStatus,
           suggestedPollIntervalMs: pollMs,
@@ -2924,6 +2970,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return json({
       success: true,
       path: finalPath,
+      maneuvers: maneuversForPath(selectedEdges, finalPath),
       totalCost: Math.round(remainingM),
       status: 'OK',
       suggestedPollIntervalMs: pollMs,

@@ -412,6 +412,32 @@ export class MTDStarLitePlanner {
     return detailedPath;
   }
 
+  /** Read-only companion to extractPath() exposing the exact selected edges. */
+  extractPathWithEdges(): { path: Array<{ lat: number; lng: number }>; edges: GraphEdge[] } {
+    const path = this.extractPath();
+    if (path.length < 2) return { path, edges: [] };
+
+    const edges: GraphEdge[] = [];
+    let cur: string | null = this.sgoal;
+    const visited = new Set<string>();
+    const maxSteps = Object.keys(this.graph.nodes).length + 10;
+    let steps = 0;
+
+    while (cur && cur !== this.sstart && !visited.has(cur)) {
+      if (steps > maxSteps) return { path, edges: [] };
+      visited.add(cur);
+      steps++;
+      const parent = this.parent.get(cur);
+      if (!parent) return { path, edges: [] };
+      const edge = (this.graph.edges[parent] ?? []).find((candidate) => candidate.to === cur);
+      if (!edge || !edge.geometry || edge.geometry.length < 2) return { path, edges: [] };
+      edges.unshift(edge);
+      cur = parent;
+    }
+
+    return cur === this.sstart ? { path, edges } : { path, edges: [] };
+  }
+
   // ── Pseudocode line 61-92: Incremental Step ──
   step(
     newStartId: string,

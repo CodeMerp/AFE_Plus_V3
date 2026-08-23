@@ -103,6 +103,7 @@ export function withUpdateResponseDefaults(
     : undefined;
   return {
     ...body,
+    maneuvers: body.maneuvers ?? [],
     lastMetric,
     refetchReason: body.refetchReason ?? lastMetric?.refetchReason ?? null,
     consecutiveRefetchCount: body.consecutiveRefetchCount ?? lastMetric?.consecutiveRefetchCount ?? 0,

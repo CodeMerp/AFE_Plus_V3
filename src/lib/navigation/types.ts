@@ -11,6 +11,13 @@ export interface GraphNode {
   lng: number;
 }
 
+export interface GraphEdgeManeuver {
+  type: string;
+  modifier?: string;
+  location: Coordinate;
+  sourceStepIndex: number;
+}
+
 export interface GraphEdge {
   from: string;
   to: string;
@@ -24,6 +31,26 @@ export interface GraphEdge {
   sparseGeometryReason?: string; // 'mapbox_sparse_step_geometry'
   /** true when a long 2-point boundary_edge was densified at graph build time to stay below MAX_PATH_JUMP_M */
   boundaryEdgeDensified?: boolean;
+  /** Directional Mapbox metadata; observational only and never used for routing. */
+  maneuver?: GraphEdgeManeuver;
+  /** Prevent geometry-only guidance where the edge provenance is not voice-safe. */
+  maneuverGeometryFallbackExcluded?: 'target_ray' | 'complex_semantic';
+  /** True only for a synthetic reverse direction lacking Mapbox authority. */
+  maneuverGeometryFallbackEligible?: true;
+}
+
+export type NavigationManeuverType =
+  | 'TURN_LEFT'
+  | 'TURN_RIGHT'
+  | 'SLIGHT_LEFT'
+  | 'SLIGHT_RIGHT'
+  | 'UTURN';
+
+export interface NavigationManeuver {
+  type: NavigationManeuverType;
+  location: Coordinate;
+  source: 'mapbox' | 'geometry-fallback';
+  sourceStepIndex?: number;
 }
 
 export interface SerializableGraph {
@@ -307,6 +334,7 @@ export interface InitRequest {
 export interface InitResponse {
   sessionId: string;
   path: Coordinate[];
+  maneuvers?: NavigationManeuver[];
   totalCost: number;
   status: 'OK' | 'ARRIVED' | 'NO_ROUTE' | 'ERROR';
   corridorNodeCount?: number;
@@ -348,6 +376,7 @@ export interface UpdateRequest {
 export interface UpdateResponse {
   success: boolean;
   path: Coordinate[];
+  maneuvers?: NavigationManeuver[];
   totalCost: number;
   status: 'OK' | 'ARRIVED' | 'NO_ROUTE' | 'ERROR';
   navigationState?: 'INITIALIZING' | 'NAVIGATING' | 'UPDATING_ROUTE' | 'REBUILDING_GRAPH' | 'ARRIVED' | 'NO_ROUTE' | 'SNAP_AMBIGUITY' | 'ERROR';

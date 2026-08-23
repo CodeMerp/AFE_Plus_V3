@@ -26,6 +26,27 @@ const MERGE_THRESHOLD_M = 15;
 // MT-D* shortcuts. Edges are still pushed to preserve graph connectivity.
 const MAX_SAFE_BOUNDARY_EDGE_M = 50;
 
+export interface CorridorBuildOptions {
+  /** Responses at and after this index are target-centered rays, not voice guidance roads. */
+  targetRayResponseStartIndex?: number;
+}
+
+const COMPLEX_MANEUVER_TYPES = new Set([
+  'roundabout',
+  'rotary',
+  'roundabout turn',
+  'exit roundabout',
+  'exit rotary',
+  'fork',
+  'merge',
+  'on ramp',
+  'off ramp',
+]);
+
+function isComplexManeuverType(type: string | undefined): boolean {
+  return COMPLEX_MANEUVER_TYPES.has((type ?? '').trim().toLowerCase());
+}
+
 // ─── Slice geometry between two intersection points ───────────────────────────
 /**
  * Given the full step geometry and two intersection coordinates,
@@ -263,6 +284,7 @@ export function buildCorridorGraph(
   responses: MapboxDirectionsResponse[],
   agentPos: Coordinate,
   targetPos: Coordinate,
+  options: CorridorBuildOptions = {},
 ): SerializableGraph {
   // Primary route (driving, first alternative) — used for corridor check + cost/duration
   const primaryRoute = responses[0].routes[0];
@@ -281,7 +303,11 @@ export function buildCorridorGraph(
   let longBoundaryPenalizedCount = 0;
 
   // ─── Process every route from every profile response ────────────────────────
-  for (const response of responses) {
+  for (let responseIndex = 0; responseIndex < responses.length; responseIndex++) {
+    const response = responses[responseIndex];
+    const isTargetRayResponse =
+      options.targetRayResponseStartIndex !== undefined &&
+      responseIndex >= options.targetRayResponseStartIndex;
     for (const route of response.routes) {
 
       // ─── 1. Extract intersections → nodes (merge <15m) ──────────────────────
@@ -336,6 +362,18 @@ export function buildCorridorGraph(
             segDists.push(d);
             totalSegDist += d;
           }
+
+          let pendingManeuver = !isTargetRayResponse && step.maneuver
+            ? {
+                type: step.maneuver.type,
+                modifier: step.maneuver.modifier,
+                location: {
+                  lat: step.maneuver.location[1],
+                  lng: step.maneuver.location[0],
+                },
+                sourceStepIndex: stepIndex,
+              }
+            : undefined;
 
           for (let j = 0; j < inters.length - 1; j++) {
             const fromKey = `${inters[j].location[1].toFixed(7)},${inters[j].location[0].toFixed(7)}`;
@@ -557,8 +595,9 @@ export function buildCorridorGraph(
             }
 
             if (!edges[fromId]) edges[fromId] = [];
-            if (!edges[fromId].some((e) => e.to === toId)) {
-              const fwdEdge: GraphEdge = {
+            let fwdEdge = edges[fromId].find((e) => e.to === toId);
+            if (!fwdEdge) {
+              fwdEdge = {
                 from: fromId,
                 to: toId,
                 cost,
@@ -567,12 +606,21 @@ export function buildCorridorGraph(
                 edgeGeomSource,
                 isBoundaryEdge: false,
               };
+              if (isTargetRayResponse) {
+                fwdEdge.maneuverGeometryFallbackExcluded = 'target_ray';
+              }
               if (isSparseGeometry) {
                 fwdEdge.sparseGeometry       = true;
                 fwdEdge.sparseGeometryReason = 'mapbox_sparse_step_geometry';
               }
               edges[fromId].push(fwdEdge);
               maybeLogEdgeGap(fromId, toId, nodes[fromId], nodes[toId], cost, edgeGeom, 'within_step', false, false);
+            }
+            if (pendingManeuver) {
+              // First source wins (driving/corridor responses are processed before
+              // walking alternatives); later overlapping routes cannot replace it.
+              if (!fwdEdge.maneuver) fwdEdge.maneuver = pendingManeuver;
+              pendingManeuver = undefined;
             }
 
             if (!edges[toId]) edges[toId] = [];
@@ -586,7 +634,13 @@ export function buildCorridorGraph(
                 edgeSource: 'within_step',
                 edgeGeomSource,
                 isBoundaryEdge: false,
+                maneuverGeometryFallbackEligible: true,
               };
+              if (isTargetRayResponse) {
+                revEdge.maneuverGeometryFallbackExcluded = 'target_ray';
+              } else if (isComplexManeuverType(step.maneuver?.type)) {
+                revEdge.maneuverGeometryFallbackExcluded = 'complex_semantic';
+              }
               if (isSparseGeometry) {
                 revEdge.sparseGeometry       = true;
                 revEdge.sparseGeometryReason = 'mapbox_sparse_step_geometry';
@@ -678,7 +732,7 @@ export function buildCorridorGraph(
 
           if (!edges[fromId]) edges[fromId] = [];
           if (!edges[fromId].some((e) => e.to === toId)) {
-            edges[fromId].push({
+            const boundaryEdge: GraphEdge = {
               from: fromId,
               to: toId,
               cost: edgeCost,
@@ -687,13 +741,17 @@ export function buildCorridorGraph(
               edgeGeomSource: 'boundary_connector',
               isBoundaryEdge: true,
               boundaryEdgeDensified,
-            });
+            };
+            if (isTargetRayResponse) {
+              boundaryEdge.maneuverGeometryFallbackExcluded = 'target_ray';
+            }
+            edges[fromId].push(boundaryEdge);
             maybeLogEdgeGap(fromId, toId, nodes[fromId], nodes[toId], edgeCost, finalBoundaryGeom, 'boundary', true, false);
           }
           if (!edges[toId]) edges[toId] = [];
           if (!edges[toId].some((e) => e.to === fromId)) {
             const rev = finalBoundaryGeom ? [...finalBoundaryGeom].reverse() : undefined;
-            edges[toId].push({
+            const reverseBoundaryEdge: GraphEdge = {
               from: toId,
               to: fromId,
               cost: edgeCost,
@@ -702,7 +760,12 @@ export function buildCorridorGraph(
               edgeGeomSource: 'boundary_connector',
               isBoundaryEdge: true,
               boundaryEdgeDensified,
-            });
+              maneuverGeometryFallbackEligible: true,
+            };
+            if (isTargetRayResponse) {
+              reverseBoundaryEdge.maneuverGeometryFallbackExcluded = 'target_ray';
+            }
+            edges[toId].push(reverseBoundaryEdge);
             maybeLogEdgeGap(toId, fromId, nodes[toId], nodes[fromId], edgeCost, rev, 'boundary', true, true);
           }
         }

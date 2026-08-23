@@ -11,6 +11,7 @@ import { buildTargetCenteredGraph, TARGET_GRAPH_RADIUS_M, countConnectedComponen
 import { MTDStarLitePlanner } from '@/lib/navigation/mtdstar-lite';
 import { GPSKalmanFilter, haversine } from '@/lib/navigation/gps.smooth';
 import { generateSessionId, saveSession, getActiveSessionCount } from '@/lib/navigation/session.store';
+import { maneuversForPath } from '@/lib/navigation/maneuver.extractor';
 import type { InitResponse, NavDistanceMode } from '@/lib/navigation/types';
 
 const log = createLogger('api/navigate/init');
@@ -72,6 +73,7 @@ function buildInitResponse(input: {
   corridorNodeCount?: number;
   estimatedTimeSeconds?: number;
   rawPlannerPathLen?: number | null;
+  maneuvers?: InitResponse['maneuvers'];
 }): InitResponse {
   logInitResponseContract({
     sessionId: input.sessionId,
@@ -105,6 +107,7 @@ function buildInitResponse(input: {
   return {
     sessionId: input.sessionId,
     path: input.path,
+    maneuvers: input.maneuvers ?? [],
     totalCost: input.totalCost,
     status: input.status,
     corridorNodeCount: input.corridorNodeCount,
@@ -158,7 +161,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const allResponses = [...mbResponses, ...targetCenteredData.rays];
 
     // 2. Unified graph: corridor backbone + target-centered walking network
-    const graph = buildCorridorGraph(allResponses, agentPos, targetPos);
+    const graph = buildCorridorGraph(allResponses, agentPos, targetPos, {
+      targetRayResponseStartIndex: mbResponses.length,
+    });
 
     const graphNodeCount = Object.keys(graph.nodes).length;
     const graphEdgeCount = Object.values(graph.edges).reduce((s, arr) => s + arr.length, 0);
@@ -260,7 +265,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const success = planner.computePath();
 
     // 5. Extract path: MT-D* decides route → extractPath maps to road geometry
-    const path = success ? planner.extractPath() : [];
+    const selectedTraversal = success
+      ? planner.extractPathWithEdges()
+      : { path: [], edges: [] };
+    const path = selectedTraversal.path;
     const rawPlannerPathLen = path.length;
     const responsePathSource: InitResponsePathSource =
       success && path.length >= 2 ? 'planner_prepared' : 'error_empty';
@@ -347,6 +355,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(200).json(buildInitResponse({
       sessionId,
       path,
+      maneuvers: maneuversForPath(selectedTraversal.edges, path),
       totalCost: Math.round(totalCost),
       status: 'OK',
       corridorNodeCount: Object.keys(graph.nodes).length,
