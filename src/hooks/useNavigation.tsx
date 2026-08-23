@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 import { NavigationService, LatLng, NavigationMode } from '@/lib/services/navigation.service';
+import type { NavigationManeuver } from '@/lib/navigation/types';
 
 const STORAGE_KEY = 'afe_navigation_session';
 const SESSION_TTL_MS = 15 * 60 * 1000;
@@ -47,9 +48,16 @@ export type EndpointDiagnostics = {
   routeVersion: number;
 };
 
+export type ManeuverRouteSnapshot = {
+  path: LatLng[];
+  maneuvers: NavigationManeuver[];
+};
+
 type NavigationContextType = {
   sessionId: string | null;
   path: LatLng[];
+  maneuvers: NavigationManeuver[];
+  maneuverRoute: ManeuverRouteSnapshot | null;
   status: 'idle' | 'loading' | 'active' | 'arrived' | 'error';
   routeUxState: RouteUxState;
   start: (agent: LatLng, target: LatLng, mode?: NavigationMode, gpsAgeMs?: number | null) => Promise<StartResult | void>;
@@ -67,6 +75,22 @@ type NavigationContextType = {
 };
 
 const NavigationContext = createContext<NavigationContextType | null>(null);
+const EMPTY_MANEUVERS: NavigationManeuver[] = [];
+
+function createManeuverRouteSnapshot(
+  path: LatLng[],
+  maneuvers: NavigationManeuver[] | undefined,
+): ManeuverRouteSnapshot {
+  return {
+    path: path.map((point) => ({ lat: point.lat, lng: point.lng })),
+    maneuvers: Array.isArray(maneuvers)
+      ? maneuvers.map((maneuver) => ({
+          ...maneuver,
+          location: { lat: maneuver.location.lat, lng: maneuver.location.lng },
+        }))
+      : EMPTY_MANEUVERS,
+  };
+}
 
 // Approximate meter distance using cosine-corrected projection.
 function approxDistM(a: LatLng, b: LatLng): number {
@@ -183,6 +207,7 @@ function computeRouteTailSignature(path: LatLng[]): string {
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [path, setPath] = useState<LatLng[]>([]);
+  const [maneuverRoute, setManeuverRoute] = useState<ManeuverRouteSnapshot | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'active' | 'arrived' | 'error'>('idle');
   const [routeUxState, setRouteUxState] = useState<RouteUxState>('idle');
   const [pollMs, setPollMs] = useState(2000);
@@ -258,6 +283,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setStatus('idle');
     setRouteUxState('idle');
     setPath([]);
+    setManeuverRoute(null);
     setEta(0);
     setDistance(0);
     setCorridorNodeCount(0);
@@ -284,6 +310,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           setStatus('idle');
           setRouteUxState('idle');
           setPath([]);
+          setManeuverRoute(null);
         };
 
         if (!data.sessionId || !isValidCoordinate(data.agentPos) || !isValidCoordinate(data.targetPos)) {
@@ -372,6 +399,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           agentRef.current = gpsCheck.position;
           targetRef.current = data.targetPos;
           setPath(restoredPath);
+          setManeuverRoute(createManeuverRouteSnapshot(restoredPath, updateData.maneuvers));
           incrementRouteVersion();
           incrementRouteSourceKey();
           lastAppliedFullSigRef.current = computeRouteFullSignature(restoredPath);
@@ -514,6 +542,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
       setSessionId(initData.sessionId);
       setPath(initData.path);
+      setManeuverRoute(createManeuverRouteSnapshot(initData.path, initData.maneuvers));
       incrementRouteVersion();
       incrementRouteSourceKey();
       // Seed signatures so first polling response can detect duplicates/tail-only
@@ -662,6 +691,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         //  4. incomingBody === prevBody → tail-only trim → setPath only
         //  5. else → new body geometry → setPath + increment
         const incomingPath     = updateData.path.map((p) => ({ lat: p.lat, lng: p.lng }));
+        setManeuverRoute(createManeuverRouteSnapshot(incomingPath, updateData.maneuvers));
         const incomingFull     = computeRouteFullSignature(incomingPath);
         const incomingBody     = computeRouteBodySignature(incomingPath);
         const incomingTail     = computeRouteTailSignature(incomingPath);
@@ -750,6 +780,8 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   return (
     <NavigationContext.Provider value={{
       path,
+      maneuvers: maneuverRoute?.maneuvers ?? EMPTY_MANEUVERS,
+      maneuverRoute,
       status,
       routeUxState,
       sessionId,

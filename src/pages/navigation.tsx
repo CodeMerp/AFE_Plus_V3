@@ -5,10 +5,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Map, { Marker, Source, Layer, MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { ArrowUp, Compass, Volume2, VolumeX, Navigation as NavIcon } from "lucide-react";
+import { ArrowUp, Compass, CornerUpLeft, CornerUpRight, MoveUpLeft, MoveUpRight, Undo2, Volume2, VolumeX, Navigation as NavIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { AdaptivePollingService } from "@/services/pollingService";
 import { NavigationProvider, useNavigation } from "@/hooks/useNavigation";
+import {
+    resolveNavigationTopBarPresentation,
+    resolveRouteUxBanner,
+    useNavigationGuidance,
+} from "@/hooks/useNavigationGuidance";
 import TopNavigationBanner from "@/components/TopNavigationBanner";
 import CustomCompass from "@/components/CustomCompass";
 import { MotionState, createInitialMotionState } from "@/lib/motion/MotionState";
@@ -236,31 +241,6 @@ function shouldHoldRouteBodyLock(p: {
     if (p.endpointDeltaM > ROUTE_BODY_LOCK_ENDPOINT_DELTA_M)
         return { hold: false, reason: 'endpoint_moved' };
     return { hold: true, reason: 'static_target_body_lock' };
-}
-
-function normalizeInstructionTitle(rawInstruction: string): string {
-    const raw = (rawInstruction || "").trim();
-    const lower = raw.toLowerCase();
-
-    if (!raw) return "ขับต่อไปตามเส้นทาง";
-    if (lower.includes("arrive") || raw.includes("ถึงจุดหมาย")) return "ถึงจุดหมายแล้ว";
-    if (lower.includes("uturn") || lower.includes("u-turn") || raw.includes("กลับรถ")) return "กลับรถ";
-    if (lower.includes("sharp left") || raw.includes("ซ้ายหักศอก")) return "เลี้ยวซ้ายหักศอก";
-    if (lower.includes("sharp right") || raw.includes("ขวาหักศอก")) return "เลี้ยวขวาหักศอก";
-    if (lower.includes("slight left") || raw.includes("เบี่ยงซ้าย")) return "เบี่ยงซ้าย";
-    if (lower.includes("slight right") || raw.includes("เบี่ยงขวา")) return "เบี่ยงขวา";
-    if (lower.includes("turn left") || raw === "left" || raw.includes("เลี้ยวซ้าย")) return "เลี้ยวซ้าย";
-    if (lower.includes("turn right") || raw === "right" || raw.includes("เลี้ยวขวา")) return "เลี้ยวขวา";
-    if (lower.includes("straight") || lower.includes("continue") || raw.includes("ตรงต่อไป")) return "ตรงต่อไป";
-    if (lower.includes("follow") || raw.includes("ขับไปตามเส้นทาง") || raw.includes("ขับต่อไปตามเส้นทาง")) {
-        return "ขับต่อไปตามเส้นทาง";
-    }
-    return raw;
-}
-
-function isGenericRouteInstruction(title: string): boolean {
-    const lower = title.toLowerCase();
-    return lower.includes("follow") || title.includes("ขับไปตามเส้นทาง") || title.includes("ขับต่อไปตามเส้นทาง");
 }
 
 function toRad(deg: number): number {
@@ -777,7 +757,7 @@ function NavigationScreen() {
     const [totalDistance, setTotalDistance] = useState(0);
 
     // --- 💡 State สำหรับ MT-D* Lite ---
-    const { path, status, routeUxState, sessionId, start, stop, markArrived, eta, distance, updatePositions, routeVersion, routeSourceKey, endpointDiagnostics, restoreChecked } = useNavigation();
+    const { path, maneuverRoute, status, routeUxState, sessionId, start, stop, markArrived, eta, distance, updatePositions, routeVersion, routeSourceKey, endpointDiagnostics, restoreChecked } = useNavigation();
     // ── Motion presentation state ───────────────────────────────────────────
 
     // displayAgentPosition: projected agent position on the route — drives marker rendering.
@@ -1224,8 +1204,6 @@ function NavigationScreen() {
     }, [path, routeVersion, status, endpointDiagnostics]);
 
     // State สำหรับ UI
-    const [instruction, setInstruction] = useState("กำลังคำนวณเส้นทาง...");
-    const [stepDistance, setStepDistance] = useState(0);
     const [arrivalTime, setArrivalTime] = useState("--:--");
     const [durationHrs, setDurationHrs] = useState(0);
     const [durationMins, setDurationMins] = useState(0);
@@ -3027,133 +3005,60 @@ function NavigationScreen() {
         };
     }, [totalDistance, arrivalDistance]);
 
-    const topBannerInstruction = useMemo(() => {
-        const remainingDistance = navigationDistanceDisplay.routeRemainingDistance;
-        const distanceToInstruction = Number.isFinite(stepDistance) ? Math.max(0, stepDistance) : 0;
-        const distanceToTarget = navigationDistanceDisplay.distanceToTarget;
-        const normalizedInstruction = normalizeInstructionTitle(instruction);
-        const arrived = status === 'arrived' || hasArrived;
+    // GUIDANCE_ROUTE_AUTHORITY: this is the exact same runtime selection used by
+    // getMotionRoute() inside the rAF integrator above. Maneuvers are projected
+    // only when their paired backend route exactly matches this geometry.
+    const guidanceRoute = stableRouteSourcePathRef.current.length >= 2
+        ? stableRouteSourcePathRef.current
+        : pathRef.current;
+    const projectGuidancePointToProgress = useCallback((point: LatLngPoint, route: LatLngPoint[]) => {
+        const projection = projectPointToRoute(point, route);
+        return projection
+            ? computeRouteProgressFromProjection(projection.segmentIndex, projection.t, route)
+            : null;
+    }, []);
+    const motionGuidanceState = motionStateRef.current;
+    const guidance = useNavigationGuidance({
+        sessionId,
+        maneuverRoute,
+        activeRoute: guidanceRoute,
+        agentProgressM: motionGuidanceState.integratorRouteProgressM,
+        agentProgressValid: motionGuidanceState.integratorRouteProgressValid,
+        status,
+        routeUxState,
+        hasArrived,
+        isNearArrival: navigationDistanceDisplay.isNearArrival,
+        projectPointToProgress: projectGuidancePointToProgress,
+    });
 
-        if (status === 'loading') {
-            return {
-                title: "กำลังคำนวณเส้นทาง...",
-                distance: null as number | null,
-                source: "loading",
-                arrived: false,
-                distanceToInstruction,
-                remainingDistance,
-                distanceToTarget,
-                maneuverType: normalizedInstruction,
-            };
-        }
-
-        if (arrived) {
-            return {
-                title: "ถึงจุดหมายแล้ว",
-                distance: null as number | null,
-                source: "arrived",
-                arrived: true,
-                distanceToInstruction,
-                remainingDistance,
-                distanceToTarget,
-                maneuverType: "arrive",
-            };
-        }
-
-        if (status === 'active' && navigationDistanceDisplay.isNearArrival) {
-            return {
-                title: "ใกล้ถึงจุดหมายแล้ว",
-                distance: navigationDistanceDisplay.displayRemainingDistance,
-                source: "nearArrival",
-                arrived: false,
-                distanceToInstruction,
-                remainingDistance,
-                distanceToTarget,
-                maneuverType: "arrive_near",
-            };
-        }
-
-        if (status === 'active' && distanceToInstruction > 0) {
-            const title = isGenericRouteInstruction(normalizedInstruction)
-                ? "ขับต่อไปตามเส้นทาง"
-                : normalizedInstruction;
-            return {
-                title,
-                distance: distanceToInstruction,
-                source: "nextManeuver",
-                arrived: false,
-                distanceToInstruction,
-                remainingDistance,
-                distanceToTarget,
-                maneuverType: normalizedInstruction,
-            };
-        }
-
-        if (status === 'active' && remainingDistance > 0) {
-            return {
-                title: "ขับต่อไปตามเส้นทาง",
-                distance: remainingDistance,
-                source: "remainingDistanceFallback",
-                arrived: false,
-                distanceToInstruction,
-                remainingDistance,
-                distanceToTarget,
-                maneuverType: normalizedInstruction,
-            };
-        }
-
-        return {
-            title: status === 'active' ? "ขับต่อไปตามเส้นทาง" : "เตรียมพร้อมนำทาง",
-            distance: null as number | null,
-            source: status === 'active' ? "hiddenDistanceFallback" : "idle",
-            arrived: false,
-            distanceToInstruction,
-            remainingDistance,
-            distanceToTarget,
-            maneuverType: normalizedInstruction,
-        };
-    }, [navigationDistanceDisplay, stepDistance, instruction, status, hasArrived]);
+    const topBannerInstruction = resolveNavigationTopBarPresentation({
+        status,
+        hasArrived,
+        isNearArrival: navigationDistanceDisplay.isNearArrival,
+        nearArrivalDistanceM: navigationDistanceDisplay.isNearArrival
+            ? navigationDistanceDisplay.displayRemainingDistance
+            : null,
+        remainingDistanceM: navigationDistanceDisplay.routeRemainingDistance,
+        guidance,
+    });
 
     const handleRetryInitRoute = useCallback(() => {
         start(currentPosition, patientLocation);
     }, [currentPosition, patientLocation, start]);
 
-    const routeUxBanner = useMemo(() => {
-        switch (routeUxState) {
-            case 'initializing':
-                return {
-                    title: "กำลังสร้างเส้นทาง...",
-                    subtitle: null,
-                    action: null,
-                };
-            case 'recalculating':
-                return {
-                    title: "กำลังปรับเส้นทาง...",
-                    subtitle: "ตำแหน่งผู้ป่วยเปลี่ยน",
-                    action: null,
-                };
-            case 'routeTemporarilyUnavailable':
-                return {
-                    title: "กำลังค้นหาเส้นทางใหม่...",
-                    subtitle: "ยังใช้เส้นทางเดิม",
-                    action: null,
-                };
-            case 'initNoRoute':
-                return {
-                    title: "ยังไม่พบเส้นทางเริ่มต้น",
-                    subtitle: null,
-                    action: "ลองใหม่",
-                };
-            case 'error':
-                return {
-                    title: "เกิดข้อผิดพลาด",
-                    subtitle: null,
-                    action: null,
-                };
-            default:
-                return null;
+    const routeUxBanner = resolveRouteUxBanner(routeUxState);
+
+    const topBannerManeuverIcon = useMemo(() => {
+        if (routeUxBanner || topBannerInstruction.source !== 'currentManeuver') return ArrowUp;
+        switch (guidance.semanticType) {
+            case 'TURN_LEFT': return CornerUpLeft;
+            case 'TURN_RIGHT': return CornerUpRight;
+            case 'SLIGHT_LEFT': return MoveUpLeft;
+            case 'SLIGHT_RIGHT': return MoveUpRight;
+            case 'UTURN': return Undo2;
+            default: return ArrowUp;
         }
-    }, [routeUxState]);
+    }, [guidance.semanticType, routeUxBanner, topBannerInstruction.source]);
 
     const lastMileLabel = useMemo(() => {
         if (status === 'arrived' || hasArrived) return null;
@@ -3634,7 +3539,7 @@ function NavigationScreen() {
 
             {/* --- 1. แถบบอกทางด้านบน --- */}
             <TopNavigationBanner
-                maneuverIcon={ArrowUp}
+                maneuverIcon={topBannerManeuverIcon}
                 distance={topBannerInstruction.distance}
                 instruction={routeUxBanner ? routeUxBanner.title : topBannerInstruction.title}
                 subtitle={routeUxBanner ? (routeUxBanner.subtitle ?? null) : (lastMileLabel ?? null)}

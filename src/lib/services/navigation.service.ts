@@ -1,3 +1,5 @@
+import type { NavigationManeuver } from '@/lib/navigation/types';
+
 export interface LatLng {
   lat: number;
   lng: number;
@@ -50,6 +52,7 @@ export interface UpdateMetric {
 interface InitResponse {
   sessionId: string;
   path: LatLng[];
+  maneuvers: NavigationManeuver[];
   totalCost: number;
   status: 'OK' | 'ARRIVED' | 'NO_ROUTE' | 'ERROR';
   success?: boolean;
@@ -73,6 +76,7 @@ interface ApiError {
 interface UpdateResponse {
   success: boolean;
   path: LatLng[];
+  maneuvers: NavigationManeuver[];
   totalCost: number;
   status: 'OK' | 'ARRIVED' | 'NO_ROUTE' | 'ERROR';
   suggestedPollIntervalMs: number;
