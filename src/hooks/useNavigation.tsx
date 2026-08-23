@@ -4,23 +4,12 @@
 
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react';
 import { NavigationService, LatLng, NavigationMode } from '@/lib/services/navigation.service';
-import {
-  classifyUpdateResult,
-  getActiveResearchRunId,
-  makeClientEventId,
-  positionPayload,
-  researchService,
-} from '@/lib/services/research.service';
 
 const STORAGE_KEY = 'afe_navigation_session';
-const ROUTE_FIRST_POINT_WARN_M = 20;
-const ROUTE_FIRST_POINT_SEVERE_M = 50;
-const ROUTE_FIRST_POINT_CONSECUTIVE_WARN_TICKS = 3;
 const SESSION_TTL_MS = 15 * 60 * 1000;
 const RESTORE_AGENT_MAX_DISTANCE_M = 1000;
 const RESTORE_GPS_MAX_AGE_MS = 15_000;
 const RESTORE_GPS_TIMEOUT_MS = 8_000;
-const NAV_DEBUG = process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_NAV_DEBUG === 'true';
 
 interface NavigationSessionData {
   sessionId: string;
@@ -79,16 +68,11 @@ type NavigationContextType = {
 
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
-// Approximate meter distance using cosine-corrected projection (no import needed for logging)
+// Approximate meter distance using cosine-corrected projection.
 function approxDistM(a: LatLng, b: LatLng): number {
   const dlat = (b.lat - a.lat) * 111320;
   const dlng = (b.lng - a.lng) * 111320 * Math.cos(a.lat * Math.PI / 180);
   return Math.sqrt(dlat * dlat + dlng * dlng);
-}
-
-function navDebugLog(tag: string, payload?: unknown): void {
-  if (!NAV_DEBUG) return;
-  console.log(tag, payload);
 }
 
 function isValidCoordinate(point: unknown): point is LatLng {
@@ -196,18 +180,6 @@ function computeRouteTailSignature(path: LatLng[]): string {
   return `${path.length - 1}:${h}`;
 }
 
-type RouteFirstPointDiagnosticInput = {
-  seq?: number;
-  source: string;
-  routeVersion: number;
-  path: LatLng[];
-  agentPos: LatLng;
-  status?: string | null;
-  replanType?: string | null;
-  mapboxApiCalled?: boolean | null;
-  refetchReason?: string | null;
-};
-
 export function NavigationProvider({ children }: { children: React.ReactNode }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [path, setPath] = useState<LatLng[]>([]);
@@ -233,10 +205,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   const latestAppliedSeqRef = useRef(0);                             // seq of last applied response
   const abortControllerRef  = useRef<AbortController | null>(null);  // current in-flight controller
 
-  // ─── Route trim tracking ──────────────────────────────────────────────────
-  const prevPathFirstRef      = useRef<LatLng | null>(null);  // path[0] from previous apply
-  const prevApplyAgentPosRef  = useRef<LatLng | null>(null);  // agent pos when path was last applied
-  const routeFirstPointFarCountRef = useRef(0);
   const routeVersionRef = useRef(0);
   const routeSourceKeyRef = useRef<number>(0);
   // ─── Route geometry signature refs ───────────────────────────────────────
@@ -270,60 +238,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     });
   }, []);
 
-  const logRouteFirstPointAgentDistance = useCallback((input: RouteFirstPointDiagnosticInput) => {
-    if (!Array.isArray(input.path) || input.path.length < 2) return;
-
-    const firstPoint = input.path[0];
-    const routeFirstPointAgentDistanceM = approxDistM(input.agentPos, firstPoint);
-    const isFar = routeFirstPointAgentDistanceM > ROUTE_FIRST_POINT_WARN_M;
-    const isSevere = routeFirstPointAgentDistanceM > ROUTE_FIRST_POINT_SEVERE_M;
-    const previousFarCount = routeFirstPointFarCountRef.current;
-    const nextFarCount = isFar ? previousFarCount + 1 : 0;
-    routeFirstPointFarCountRef.current = nextFarCount;
-
-    const payload = {
-      seq: input.seq,
-      source: input.source,
-      routeVersion: input.routeVersion,
-      pathLen: input.path.length,
-      agentPos: input.agentPos,
-      firstPoint,
-      routeFirstPointAgentDistanceM: Math.round(routeFirstPointAgentDistanceM),
-      status: input.status ?? null,
-      replanType: input.replanType ?? null,
-      mapboxApiCalled: input.mapboxApiCalled ?? null,
-      refetchReason: input.refetchReason ?? null,
-      warnThresholdM: ROUTE_FIRST_POINT_WARN_M,
-      severeThresholdM: ROUTE_FIRST_POINT_SEVERE_M,
-      consecutiveFarCount: nextFarCount,
-      isSevere,
-    };
-
-    console.log('[NAV] ROUTE_FIRST_POINT_AGENT_DISTANCE', payload);
-
-    if (isFar) {
-      console.warn('[NAV] ROUTE_FIRST_POINT_TOO_FAR', payload);
-      console.warn('[NAV] ROUTE_APPLIED_BUT_START_FAR_FROM_AGENT', payload);
-
-      if (nextFarCount >= ROUTE_FIRST_POINT_CONSECUTIVE_WARN_TICKS) {
-        console.warn('[NAV] ROUTE_FIRST_POINT_TOO_FAR_CONSECUTIVE', {
-          ...payload,
-          consecutiveThresholdTicks: ROUTE_FIRST_POINT_CONSECUTIVE_WARN_TICKS,
-        });
-      }
-      return;
-    }
-
-    console.log('[NAV] ROUTE_APPLIED_START_NEAR_AGENT', payload);
-
-    if (previousFarCount > 0) {
-      console.log('[NAV] ROUTE_FIRST_POINT_DISTANCE_RECOVERED', {
-        ...payload,
-        previousFarCount,
-      });
-    }
-  }, []);
-
   const updatePositions = useCallback((agent: LatLng, target: LatLng) => {
     agentRef.current = agent;
     targetRef.current = target;
@@ -337,9 +251,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     isUpdateInFlightRef.current = false;
     requestSeqRef.current       = 0;
     latestAppliedSeqRef.current = 0;
-    prevPathFirstRef.current     = null;
-    prevApplyAgentPosRef.current = null;
-    routeFirstPointFarCountRef.current = 0;
     lastAppliedFullSigRef.current = null;
     lastAppliedBodySigRef.current = null;
     lastAppliedTailSigRef.current = null;
@@ -352,35 +263,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     setCorridorNodeCount(0);
     setEndpointDiagnostics(null);
     localStorage.removeItem(STORAGE_KEY);
-    navDebugLog('[NAV] NAV_START_CLEAR_PREVIOUS_SESSION', {
-      reason,
-      timestamp: Date.now(),
-    });
   }, []);
 
   // ✅ 1. Restore session จาก localStorage เมื่อ component mount
   useEffect(() => {
     const restoreSession = async () => {
-      let recordRestoreResult: ((input: {
-        classification: 'SUCCESS' | 'FAILURE';
-        success: boolean;
-        failureReason?: string | null;
-        responseReceivedAt?: number | null;
-        status?: string | null;
-        pathLen?: number | null;
-        replanType?: string | null;
-        stepMs?: number | null;
-        totalMs?: number | null;
-        targetCoveredBySessionGraph?: boolean | null;
-        targetCoverageReason?: string | null;
-        refetchReason?: string | null;
-        pathReachesTarget?: boolean | null;
-        navMetric?: unknown;
-      }) => void) | null = null;
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (!stored) {
-          console.log('ℹ️ No stored session found');
           setRestoreChecked(true);
           return;
         }
@@ -388,25 +278,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         const data: NavigationSessionData = JSON.parse(stored);
         const ageMs = Date.now() - data.timestamp;
 
-        navDebugLog('[NAV] NAV_RESTORED_SESSION_FOUND', {
-          sessionId: data.sessionId ?? null,
-          ageMs,
-          agentPos: data.agentPos ?? null,
-          targetPos: data.targetPos ?? null,
-        });
-
         const discardRestoredSession = (reason: string, extra?: Record<string, unknown>) => {
           localStorage.removeItem(STORAGE_KEY);
           setSessionId(null);
           setStatus('idle');
           setRouteUxState('idle');
           setPath([]);
-          navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
-            reason,
-            sessionId: data.sessionId ?? null,
-            ageMs,
-            ...extra,
-          });
         };
 
         if (!data.sessionId || !isValidCoordinate(data.agentPos) || !isValidCoordinate(data.targetPos)) {
@@ -417,7 +294,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
         // ตรวจสอบว่า session เก่าเกินไปหรือไม่ (เกิน 15 นาที = session หมดอายุ)
         if (ageMs > SESSION_TTL_MS) {
-          console.log('⏰ Stored session expired, clearing...');
           discardRestoredSession('expired');
           setRestoreChecked(true);
           return;
@@ -448,24 +324,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         }
 
         if (isInitializingRef.current) {
-          navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
-            reason: 'fresh_start_in_progress',
-            sessionId: data.sessionId,
-          });
           setRestoreChecked(true);
           return;
         }
 
-        navDebugLog('[NAV] NAV_RESTORED_SESSION_ACCEPTED', {
-          sessionId: data.sessionId,
-          currentGps: gpsCheck.position,
-          restoredAgentPos: data.agentPos,
-          distanceM: Math.round(restoredAgentDistanceM),
-          thresholdM: RESTORE_AGENT_MAX_DISTANCE_M,
-          gpsAgeMs: gpsCheck.ageMs,
-        });
-
-        console.log('🔄 Restoring session:', data.sessionId);
         isRestoringRef.current = true;
 
         setSessionId(data.sessionId);
@@ -478,109 +340,25 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
         // เรียก /update เพื่อดึง path ล่าสุด
         // หมายเหตุ: ตรงนี้ถ้า res.ok ไม่ผ่าน หรือเป็น 404 จะ return { sessionExpired: true }
-        const restoreRunId = getActiveResearchRunId();
-        const restoreStartedAt = Date.now();
-        const restoreStartedIso = new Date(restoreStartedAt).toISOString();
-        const restoreRouteUpdateId = restoreRunId ? makeClientEventId(`restore-${data.sessionId}`) : null;
-        recordRestoreResult = (input) => {
-          if (!restoreRunId || !restoreRouteUpdateId) return;
-          const decisionCompletedAt = Date.now();
-          researchService.recordNavEvent({
-            runId: restoreRunId,
-            clientEventId: makeClientEventId('restore-result'),
-            sessionId: data.sessionId,
-            routeUpdateId: restoreRouteUpdateId,
-            event: 'NAV_UPDATE_RESULT',
-            clientTimestamp: new Date(decisionCompletedAt).toISOString(),
-            startedAt: restoreStartedIso,
-            responseReceivedAt: input.responseReceivedAt ? new Date(input.responseReceivedAt).toISOString() : null,
-            decisionCompletedAt: new Date(decisionCompletedAt).toISOString(),
-            systemRouteLatencyMs: decisionCompletedAt - restoreStartedAt,
-            classification: input.classification,
-            success: input.success,
-            failureReason: input.failureReason ?? null,
-            status: input.status ?? null,
-            pathLen: input.pathLen ?? null,
-            replanType: input.replanType ?? null,
-            stepMs: input.stepMs ?? null,
-            totalMs: input.totalMs ?? null,
-            targetCoveredBySessionGraph: input.targetCoveredBySessionGraph ?? null,
-            targetCoverageReason: input.targetCoverageReason ?? null,
-            refetchReason: input.refetchReason ?? null,
-            pathReachesTarget: input.pathReachesTarget ?? null,
-            navMetric: input.navMetric ?? null,
-            agentPos: positionPayload(gpsCheck.position),
-            targetPos: positionPayload(data.targetPos),
-          });
-        };
-        if (restoreRunId && restoreRouteUpdateId) {
-          researchService.recordNavEvent({
-            runId: restoreRunId,
-            clientEventId: makeClientEventId('restore-start'),
-            sessionId: data.sessionId,
-            routeUpdateId: restoreRouteUpdateId,
-            event: 'NAV_UPDATE_REQUEST_START',
-            clientTimestamp: restoreStartedIso,
-            startedAt: restoreStartedIso,
-            agentPos: positionPayload(gpsCheck.position),
-            targetPos: positionPayload(data.targetPos),
-          });
-        }
         const updateData = await navService.update(
           data.sessionId,
           gpsCheck.position,
           data.targetPos,
           controller.signal,
-          restoreRunId && restoreRouteUpdateId ? { runId: restoreRunId, routeUpdateId: restoreRouteUpdateId } : undefined
         );
-        const restoreResponseReceivedAt = Date.now();
 
         if (controller.signal.aborted || isInitializingRef.current) {
-          recordRestoreResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: controller.signal.aborted ? 'restore_aborted' : 'fresh_start_in_progress',
-            responseReceivedAt: restoreResponseReceivedAt,
-          });
-          navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
-            reason: controller.signal.aborted ? 'restore_aborted' : 'fresh_start_in_progress',
-            sessionId: data.sessionId,
-          });
           return;
         }
 
         if ('sessionExpired' in updateData && updateData.sessionExpired) {
           console.warn('🔄 Session expired on server, clearing stored session...');
-          recordRestoreResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'session_expired',
-            responseReceivedAt: restoreResponseReceivedAt,
-          });
           discardRestoredSession('invalid_session', { serverReason: 'session_expired' });
           return;
         }
 
         if ('success' in updateData && updateData.success) {
           if (!canApplyRoutePath(updateData.path, updateData.status, updateData.success)) {
-            recordRestoreResult({
-              classification: 'FAILURE',
-              success: false,
-              failureReason: updateData.status === 'NO_ROUTE'
-                ? updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? 'no_route'
-                : 'invalid_incoming_path',
-              responseReceivedAt: restoreResponseReceivedAt,
-              status: updateData.status,
-              pathLen: updateData.path?.length ?? 0,
-              replanType: updateData.lastMetric?.replanType ?? null,
-              stepMs: updateData.lastMetric?.stepMs ?? null,
-              totalMs: updateData.lastMetric?.totalMs ?? null,
-              targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
-              targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
-              refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-              pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
-              navMetric: updateData.lastMetric ?? null,
-            });
             console.warn('[NAV] ROUTE_APPLY_BLOCKED_INVALID_RESPONSE', {
               source: 'restore', status: updateData.status, pathLen: (updateData.path as any)?.length ?? 0,
             });
@@ -591,20 +369,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
             return;
           }
           const restoredPath = updateData.path.map((p: any) => ({ lat: p.lat, lng: p.lng }));
-          logRouteFirstPointAgentDistance({
-            source: 'restore',
-            routeVersion: routeVersionRef.current + 1,
-            path: restoredPath,
-            agentPos: gpsCheck.position,
-            status: updateData.status,
-            replanType: (updateData as any).lastMetric?.replanType ?? 'restore',
-            mapboxApiCalled: (updateData as any).lastMetric?.mapboxApiCalled ?? null,
-            refetchReason: (updateData as any).refetchReason ?? null,
-          });
+          agentRef.current = gpsCheck.position;
+          targetRef.current = data.targetPos;
           setPath(restoredPath);
           incrementRouteVersion();
           incrementRouteSourceKey();
-          console.log('[NAV] ROUTE_SOURCE_REMOUNT_ALLOWED', { source: 'restore', routeSourceKey: routeSourceKeyRef.current });
           lastAppliedFullSigRef.current = computeRouteFullSignature(restoredPath);
           lastAppliedBodySigRef.current = computeRouteBodySignature(restoredPath);
           lastAppliedTailSigRef.current = computeRouteTailSignature(restoredPath);
@@ -613,59 +382,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           setStatus('active');
           setRouteUxState('navigating');
           {
-            const classified = classifyUpdateResult(updateData);
-            recordRestoreResult({
-              classification: classified.classification,
-              success: classified.classification === 'SUCCESS',
-              failureReason: classified.failureReason,
-              responseReceivedAt: restoreResponseReceivedAt,
-              status: updateData.status,
-              pathLen: updateData.path.length,
-              replanType: updateData.lastMetric?.replanType ?? null,
-              stepMs: updateData.lastMetric?.stepMs ?? null,
-              totalMs: updateData.lastMetric?.totalMs ?? null,
-              targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
-              targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
-              refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-              pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
-              navMetric: updateData.lastMetric ?? null,
-            });
           }
-          console.log('✅ Session restored successfully');
         } else {
           // Session หมดอายุหรือ error → ลบออกจาก localStorage
           console.warn('❌ Failed to restore session, clearing...');
-          recordRestoreResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'error' in updateData ? `api_error_${updateData.status}` : ((updateData as any).status ?? 'restore_failed'),
-            responseReceivedAt: restoreResponseReceivedAt,
-            status: (updateData as any).status ?? null,
-            pathLen: (updateData as any).path?.length ?? 0,
-            navMetric: (updateData as any).lastMetric ?? null,
-          });
           discardRestoredSession('invalid_session', { serverStatus: (updateData as any).status ?? null });
         }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
-          recordRestoreResult?.({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'restore_aborted',
-            responseReceivedAt: null,
-          });
-          navDebugLog('[NAV] NAV_RESTORED_SESSION_DISCARDED', {
-            reason: 'restore_aborted',
-          });
           return;
         }
         console.error('❌ Restore session failed:', err);
-        recordRestoreResult?.({
-          classification: 'FAILURE',
-          success: false,
-          failureReason: err instanceof Error ? err.message : String(err),
-          responseReceivedAt: null,
-        });
         localStorage.removeItem(STORAGE_KEY);
         setStatus('idle');
         setRouteUxState('idle');
@@ -690,13 +417,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    console.log('💾 Session saved to localStorage:', sessionId);
   }, [sessionId]);
 
   // หยุดนำทาง + ล้าง timer + abort in-flight request
   const stop = useCallback(() => {
     clearNavigationSession('stop');
-    console.log('🗑️ Navigation stopped, session cleared');
   }, [clearNavigationSession]);
 
   const markArrived = useCallback(() => {
@@ -707,10 +432,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     isUpdateInFlightRef.current = false;
     setStatus('arrived');
     setRouteUxState('arrived');
-    navDebugLog('[NAV] NAV_ARRIVAL_POLLING_STOPPED', {
-      sessionId,
-      timestamp: Date.now(),
-    });
   }, [sessionId]);
 
   // เริ่มนำทาง (เรียก /init)
@@ -733,33 +454,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     // Reset polling state — new session must start with clean seq counters
     requestSeqRef.current       = 0;
     latestAppliedSeqRef.current = 0;
-    prevPathFirstRef.current     = null;
-    prevApplyAgentPosRef.current = null;
-    routeFirstPointFarCountRef.current = 0;
     lastAppliedFullSigRef.current = null;
     lastAppliedBodySigRef.current = null;
     lastAppliedTailSigRef.current = null;
 
-    console.log('[NAV] NAV_INIT_REQUEST_START', {
-      agentPos:  agent,
-      targetPos: target,
-      gpsAgeMs,
-      timestamp: Date.now(),
-    });
     setStatus('loading');
     setRouteUxState('initializing');
     try {
-      const activeRunId = getActiveResearchRunId();
-      const data = await navService.init(agent, target, mode, activeRunId);
-      console.log('[NAV] NAV_INIT_RESPONSE_RECEIVED', {
-        status:    (data as any).status    ?? null,
-        success:   (data as any).success   ?? null,
-        pathLen:   (data as any).path?.length ?? 0,
-        sessionId: (data as any).sessionId ?? null,
-        hasPath:   Array.isArray((data as any).path) && (data as any).path.length >= 2,
-        error:     (data as any).error     ?? null,
-        timestamp: Date.now(),
-      });
+      const data = await navService.init(agent, target, mode);
 
       if ((data as any).error) {
         if ((data as any).rateLimit) {
@@ -791,13 +493,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         if (initData.status === 'NO_ROUTE' || initData.success === false) {
           setStatus('idle');
           setRouteUxState('initNoRoute');
-          console.log('[NAV] ROUTE_UX_STATE_CHANGED', {
-            source: 'init',
-            routeUxState: 'initNoRoute',
-            status: initData.status ?? null,
-            success: initData.success ?? null,
-            pathLen: initData.path?.length ?? 0,
-          });
         } else {
           setStatus('error');
           setRouteUxState('error');
@@ -805,50 +500,14 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         return;
       }
 
-      console.log('[NAV] NAV_INIT_APPLY_ALLOWED', {
-        pathLen:    initData.path.length,
-        firstPoint: initData.path[0],
-        lastPoint:  initData.path[initData.path.length - 1],
-        sessionId:  initData.sessionId,
-      });
       setSessionId(initData.sessionId);
-      if (activeRunId && initData.sessionId) {
-        void researchService.bindSession(activeRunId, initData.sessionId).catch((err) => {
-          console.warn('[RESEARCH] bind session failed', err);
-        });
-      }
-      console.log('[NAV] APPLY_NEW_ROUTE', {
-        source: 'init',
-        pathLen: initData.path.length,
-        first: initData.path[0],
-        last: initData.path[initData.path.length - 1],
-        status: initData.status,
-        replanType: 'init',
-        mapboxApiCalled: true,
-      });
-      logRouteFirstPointAgentDistance({
-        source: 'init',
-        routeVersion: routeVersionRef.current + 1,
-        path: initData.path,
-        agentPos: agent,
-        status: initData.status,
-        replanType: 'init',
-        mapboxApiCalled: true,
-        refetchReason: null,
-      });
       setPath(initData.path);
       incrementRouteVersion();
       incrementRouteSourceKey();
-      console.log('[NAV] ROUTE_SOURCE_REMOUNT_ALLOWED', { source: 'init', routeSourceKey: routeSourceKeyRef.current });
       // Seed signatures so first polling response can detect duplicates/tail-only
       lastAppliedFullSigRef.current = computeRouteFullSignature(initData.path);
       lastAppliedBodySigRef.current = computeRouteBodySignature(initData.path);
       lastAppliedTailSigRef.current = computeRouteTailSignature(initData.path);
-      console.log('[NAV] NAV_INIT_STATE_UPDATE_QUEUED', {
-        pathLen:                   initData.path.length,
-        routeVersionWillIncrement: true,
-        sessionId:                 initData.sessionId,
-      });
       setEta(initData.estimatedTimeSeconds || 0);
       setDistance(initData.totalCost || 0);
       setCorridorNodeCount(initData.corridorNodeCount || 0);
@@ -860,12 +519,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
       agentRef.current = agent;
       targetRef.current = target;
 
-      console.log('[NAV] NAV_START_COMPLETED', {
-        sessionId: initData.sessionId,
-        pathLen:   initData.path.length,
-        status:    'active',
-        timestamp: Date.now(),
-      });
       return { sessionId: initData.sessionId, pathLen: initData.path.length, applied: true };
     } catch (err) {
       console.error('❌ Init error:', err);
@@ -883,15 +536,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
     pollRef.current = setInterval(async () => {
       // ── In-flight guard: skip tick if previous request hasn't finished ──────
       if (isUpdateInFlightRef.current) {
-        console.log('[NAV] NAV_UPDATE_SKIPPED_IN_FLIGHT', {
-          sessionId, seq: requestSeqRef.current,
-        });
         return;
       }
 
       const seq = ++requestSeqRef.current;
       const startedAt = Date.now();
-      const startedIso = new Date(startedAt).toISOString();
       isUpdateInFlightRef.current = true;
 
       // Each request gets its own AbortController
@@ -901,94 +550,17 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
       const agentPos = agentRef.current;
       const targetPos = targetRef.current;
-      const activeRunId = getActiveResearchRunId();
-      const routeUpdateId = activeRunId ? `${sessionId}-u${seq}-${startedAt}` : null;
-
-      const recordResearchResult = (input: {
-        classification: 'SUCCESS' | 'FAILURE';
-        success: boolean;
-        failureReason?: string | null;
-        responseReceivedAt?: number | null;
-        decisionCompletedAt?: number;
-        status?: string | null;
-        pathLen?: number | null;
-        replanType?: string | null;
-        stepMs?: number | null;
-        totalMs?: number | null;
-        targetCoveredBySessionGraph?: boolean | null;
-        targetCoverageReason?: string | null;
-        refetchReason?: string | null;
-        pathReachesTarget?: boolean | null;
-        navMetric?: unknown;
-      }) => {
-        if (!activeRunId || !routeUpdateId) return;
-        const decisionCompletedAt = input.decisionCompletedAt ?? Date.now();
-        researchService.recordNavEvent({
-          runId: activeRunId,
-          clientEventId: makeClientEventId('nav-result'),
-          sessionId,
-          routeUpdateId,
-          event: 'NAV_UPDATE_RESULT',
-          clientTimestamp: new Date(decisionCompletedAt).toISOString(),
-          startedAt: startedIso,
-          responseReceivedAt: input.responseReceivedAt ? new Date(input.responseReceivedAt).toISOString() : null,
-          decisionCompletedAt: new Date(decisionCompletedAt).toISOString(),
-          systemRouteLatencyMs: decisionCompletedAt - startedAt,
-          classification: input.classification,
-          success: input.success,
-          failureReason: input.failureReason ?? null,
-          status: input.status ?? null,
-          pathLen: input.pathLen ?? null,
-          replanType: input.replanType ?? null,
-          stepMs: input.stepMs ?? null,
-          totalMs: input.totalMs ?? null,
-          targetCoveredBySessionGraph: input.targetCoveredBySessionGraph ?? null,
-          targetCoverageReason: input.targetCoverageReason ?? null,
-          refetchReason: input.refetchReason ?? null,
-          pathReachesTarget: input.pathReachesTarget ?? null,
-          navMetric: input.navMetric ?? null,
-          agentPos: positionPayload(agentPos),
-          targetPos: positionPayload(targetPos),
-        });
-      };
-
-      console.log('[NAV] NAV_UPDATE_REQUEST_START', { seq, sessionId, startedAt });
-      if (activeRunId && routeUpdateId) {
-        researchService.recordNavEvent({
-          runId: activeRunId,
-          clientEventId: makeClientEventId('nav-start'),
-          sessionId,
-          routeUpdateId,
-          event: 'NAV_UPDATE_REQUEST_START',
-          clientTimestamp: startedIso,
-          startedAt: startedIso,
-          agentPos: positionPayload(agentPos),
-          targetPos: positionPayload(targetPos),
-        });
-      }
-
       try {
         const data = await navService.update(
           sessionId,
           agentPos,
           targetPos,
           controller.signal,
-          activeRunId && routeUpdateId ? { runId: activeRunId, routeUpdateId } : undefined,
         );
         const durationMs = Date.now() - startedAt;
-        const responseReceivedAt = Date.now();
 
         // ── Stale response guard ─────────────────────────────────────────────
         if (seq <= latestAppliedSeqRef.current) {
-          console.log('[NAV] NAV_UPDATE_STALE_RESPONSE_DROPPED', {
-            seq, latestApplied: latestAppliedSeqRef.current, sessionId,
-          });
-          recordResearchResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'stale_response_dropped',
-            responseReceivedAt,
-          });
           return;
         }
 
@@ -1004,29 +576,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
             });
             setRouteUxState('routeTemporarilyUnavailable');
           }
-          recordResearchResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: data.rateLimit ? 'rate_limited' : `api_error_${data.status}`,
-            responseReceivedAt,
-          });
           return;
         }
 
-        console.log('[NAV] NAV_UPDATE_REQUEST_DONE', {
-          seq, sessionId, status: data.status,
-          pathLen: data.path?.length, durationMs,
-        });
 
         // ── Session expired → silent re-init ─────────────────────────────────
         if ('sessionExpired' in data && data.sessionExpired) {
-          console.log('[NAV] Session expired, auto-recovering...', { seq, sessionId });
-          recordResearchResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'session_expired',
-            responseReceivedAt,
-          });
           start(agentRef.current, targetRef.current);
           return;
         }
@@ -1051,37 +606,10 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           routeVersion: routeVersionRef.current,
         };
         setEndpointDiagnostics(endpointCompare);
-        console.log('[NAV] ENDPOINT_COMPARE_RESPONSE', endpointCompare);
 
         // ── Backend terminal state: ARRIVED may intentionally carry path:[] ─────
         // Handle it before the route guard so arrival does not require renderable geometry.
         if (isBackendArrivedResponse(updateData)) {
-          console.log('[NAV] ARRIVED_FROM_BACKEND', {
-            seq,
-            sessionId,
-            status: updateData.status,
-            navigationState: updateData.navigationState ?? null,
-            pathReachesTarget: updateData.pathReachesTarget ?? null,
-            pathLen: updateData.path?.length ?? 0,
-            totalCost: updateData.totalCost,
-            refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-            routeVersion: routeVersionRef.current,
-          });
-          recordResearchResult({
-            classification: 'SUCCESS',
-            success: true,
-            responseReceivedAt,
-            status: updateData.status,
-            pathLen: updateData.path?.length ?? 0,
-            replanType: updateData.lastMetric?.replanType ?? null,
-            stepMs: updateData.lastMetric?.stepMs ?? null,
-            totalMs: updateData.lastMetric?.totalMs ?? null,
-            targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
-            targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
-            refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-            pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
-            navMetric: updateData.lastMetric ?? null,
-          });
           markArrived();
           return;
         }
@@ -1098,12 +626,6 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
             pathLen: updateData.path?.length ?? 0,
             refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
           });
-          console.log('[NAV] ROUTE_UPDATE_KEEPING_EXISTING_ROUTE', {
-            reason:       nonFatalReason,
-            status:       updateData.status ?? null,
-            pathLen:      updateData.path?.length ?? 0,
-            routeVersion: routeVersionRef.current,
-          });
           if (
             updateData.status === 'NO_ROUTE' ||
             isSnapAmbiguityResponse(updateData)
@@ -1112,96 +634,12 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
               ? 'recalculating'
               : 'routeTemporarilyUnavailable';
             setRouteUxState(nextRouteUxState);
-            console.log('[NAV] NON_FATAL_ROUTE_RECALCULATING', {
-              seq,
-              sessionId,
-              status: updateData.status ?? null,
-              navigationState: updateData.navigationState ?? null,
-              refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-              routeVersion: routeVersionRef.current,
-              routeUxState: nextRouteUxState,
-            });
           }
-          recordResearchResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: nonFatalReason,
-            responseReceivedAt,
-            status: updateData.status,
-            pathLen: updateData.path?.length ?? 0,
-            replanType: updateData.lastMetric?.replanType ?? null,
-            stepMs: updateData.lastMetric?.stepMs ?? null,
-            totalMs: updateData.lastMetric?.totalMs ?? null,
-            targetCoveredBySessionGraph: updateData.lastMetric?.targetCoveredBySessionGraph ?? null,
-            targetCoverageReason: updateData.lastMetric?.targetCoverageReason ?? null,
-            refetchReason: updateData.refetchReason ?? updateData.lastMetric?.refetchReason ?? null,
-            pathReachesTarget: updateData.pathReachesTarget ?? updateData.lastMetric?.pathReachesTarget ?? null,
-            navMetric: updateData.lastMetric ?? null,
-          });
           return;
         }
 
         // ── Apply ────────────────────────────────────────────────────────────
         const updateMeta = updateData as any;
-        const nextRouteVersion = routeVersionRef.current + 1;
-
-        console.log('[NAV] NAV_UPDATE_APPLY_ALLOWED', {
-          seq, sessionId, pathLen: updateData.path.length, durationMs,
-        });
-
-        // ── Route trim diagnostics (always fire for valid responses) ─────────
-        // Fires before the apply decision so the data is always captured.
-        // APPLY_NEW_ROUTE and ROUTE_TRIM_APPLIED are logged within branches below.
-        const newFirst = updateData.path[0];
-        const prevFirst = prevPathFirstRef.current;
-        const distFirstPointMovedM = prevFirst ? approxDistM(prevFirst, newFirst) : -1;
-        const agentMovedSinceLastApplyM = prevApplyAgentPosRef.current
-          ? approxDistM(prevApplyAgentPosRef.current, agentRef.current)
-          : -1;
-
-        console.log('[NAV] ROUTE_TRIM_DIAGNOSTICS', {
-          seq,
-          pathLen: updateData.path.length,
-          firstPoint: newFirst,
-          previousFirstPoint: prevFirst,
-          distFirstPointMovedM: distFirstPointMovedM >= 0 ? Math.round(distFirstPointMovedM) : null,
-          agentMovedSinceLastApplyM: agentMovedSinceLastApplyM >= 0 ? Math.round(agentMovedSinceLastApplyM) : null,
-        });
-
-        if (distFirstPointMovedM > 5) {
-          console.log('[NAV] ROUTE_FIRST_POINT_CHANGED', {
-            seq,
-            distFirstPointMovedM: Math.round(distFirstPointMovedM),
-            prevFirst,
-            newFirst,
-          });
-        }
-
-        // Stall: agent moved >15m since last apply but path[0] barely moved
-        if (agentMovedSinceLastApplyM > 15 && distFirstPointMovedM >= 0 && distFirstPointMovedM < 2) {
-          console.warn('[NAV] ROUTE_TRIM_STALLED_FRONTEND', {
-            seq,
-            agentMovedSinceLastApplyM: Math.round(agentMovedSinceLastApplyM),
-            distFirstPointMovedM: Math.round(distFirstPointMovedM),
-            firstPoint: newFirst,
-            agentPos: agentRef.current,
-          });
-        }
-
-        logRouteFirstPointAgentDistance({
-          seq,
-          source: 'polling',
-          routeVersion: nextRouteVersion,
-          path: updateData.path,
-          agentPos: agentRef.current,
-          status: updateData.status,
-          replanType: updateData.lastMetric?.replanType ?? null,
-          mapboxApiCalled: updateData.lastMetric?.mapboxApiCalled ?? null,
-          refetchReason: updateMeta.refetchReason ?? updateMeta.lastMetric?.refetchReason ?? null,
-        });
-
-        prevPathFirstRef.current = newFirst;
-        prevApplyAgentPosRef.current = { ...agentRef.current };
         latestAppliedSeqRef.current = seq;
 
         // ── Smart route apply decision ────────────────────────────────────────
@@ -1219,53 +657,16 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         const prevBody         = lastAppliedBodySigRef.current;
         const prevTail         = lastAppliedTailSigRef.current;
         const mapboxCalledNow  = updateMeta.lastMetric?.mapboxApiCalled === true;
-        const replanTypeNow    = updateMeta.lastMetric?.replanType ?? null;
         const refetchReasonNow = updateMeta.lastMetric?.refetchReason ?? updateMeta.refetchReason ?? null;
-
-        console.log('[NAV] ROUTE_GEOMETRY_SIGNATURE_COMPUTED', {
-          seq,
-          source:            'polling',
-          pathLen:           incomingPath.length,
-          fullSignature:     incomingFull,
-          bodySignature:     incomingBody,
-          prevFullSignature: prevFull,
-          prevBodySignature: prevBody,
-          routeVersion:      routeVersionRef.current,
-          mapboxApiCalled:   mapboxCalledNow,
-          replanType:        replanTypeNow,
-          refetchReason:     refetchReasonNow,
-        });
-
-        // Truth tracking vars for NAV_FRONTEND_PATH_TRUTH (Patch 2 — evidence only)
-        let truthSetPathCalled = false;
-        let truthRouteVersionIncremented = false;
-        let truthUpdateReason: string | null = null;
-        let truthSkipReason: string | null = null;
-        const truthRouteVersionBefore = routeVersionRef.current;
 
         if (prevFull === null) {
           // Branch 1: First polling response for this session → always apply
           setPath(incomingPath);
           incrementRouteVersion();
           incrementRouteSourceKey();
-          console.log('[NAV] ROUTE_SOURCE_REMOUNT_ALLOWED', { source: 'polling', reason: 'first_route', routeSourceKey: routeSourceKeyRef.current });
           lastAppliedFullSigRef.current = incomingFull;
           lastAppliedBodySigRef.current = incomingBody;
           lastAppliedTailSigRef.current = incomingTail;
-          truthSetPathCalled = true; truthRouteVersionIncremented = true;
-          truthUpdateReason = 'first_route';
-          console.log('[NAV] ROUTE_UPDATE_APPLIED_NEW_BODY_GEOMETRY', {
-            seq, source: 'polling', reason: 'first_route',
-            newBodySignature: incomingBody, pathLen: incomingPath.length,
-            routeVersionWillIncrement: true,
-            replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
-          console.log('[NAV] APPLY_NEW_ROUTE', {
-            seq, sessionId, pathLen: incomingPath.length,
-            first: incomingPath[0], last: incomingPath[incomingPath.length - 1],
-            status: updateData.status, replanType: replanTypeNow,
-            mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
         } else if (mapboxCalledNow || refetchReasonNow != null) {
           // Branch 2: Mapbox API was called or explicit refetch — always new geometry.
           // Must come BEFORE duplicate check: a refetch could return same coords as
@@ -1273,33 +674,11 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           setPath(incomingPath);
           incrementRouteVersion();
           incrementRouteSourceKey();
-          console.log('[NAV] ROUTE_SOURCE_REMOUNT_ALLOWED', { source: 'polling', reason: 'mapbox_refetch', routeSourceKey: routeSourceKeyRef.current });
           lastAppliedFullSigRef.current = incomingFull;
           lastAppliedBodySigRef.current = incomingBody;
           lastAppliedTailSigRef.current = incomingTail;
-          truthSetPathCalled = true; truthRouteVersionIncremented = true;
-          truthUpdateReason = 'mapbox_refetch';
-          console.log('[NAV] ROUTE_UPDATE_APPLIED_MAPBOX_REFETCH_GEOMETRY', {
-            seq, source: 'polling',
-            pathLen: incomingPath.length, routeVersionWillIncrement: true,
-            replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
-          console.log('[NAV] APPLY_NEW_ROUTE', {
-            seq, sessionId, pathLen: incomingPath.length,
-            first: incomingPath[0], last: incomingPath[incomingPath.length - 1],
-            status: updateData.status, replanType: replanTypeNow,
-            mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
         } else if (incomingFull === prevFull) {
           // Branch 3: Exact duplicate — skip apply entirely (no setPath, no increment)
-          truthSkipReason = 'exact_duplicate';
-          console.log('[NAV] ROUTE_UPDATE_SKIPPED_DUPLICATE_GEOMETRY', {
-            seq, source: 'polling',
-            fullSignature: incomingFull, bodySignature: incomingBody,
-            routeVersion: routeVersionRef.current,
-            status: updateData.status, replanType: replanTypeNow,
-            mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
         } else if (prevBody !== null && incomingBody === prevBody) {
           // Branch 4: Same endpoint — could be agent-side trim OR MT-D* mid-route change.
           // tailSignature (path[1..n]) distinguishes the two cases:
@@ -1310,157 +689,37 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
           lastAppliedFullSigRef.current = incomingFull;
           lastAppliedTailSigRef.current = incomingTail;
           // prevBody stays the same — endpoint is unchanged
-          truthSetPathCalled = true;
           if (tailChanged) {
             incrementRouteVersion();
             // Source key NOT incremented — MT-D* incremental replan must NOT remount Source
-            console.log('[NAV] ROUTE_SOURCE_REMOUNT_BLOCKED', {
-              source: 'polling', reason: 'mt_dstar_tail_change',
-              routeVersion: routeVersionRef.current, routeSourceKey: routeSourceKeyRef.current,
-            });
-            truthRouteVersionIncremented = true;
-            truthUpdateReason = 'same_body_tail_changed_mt_dstar';
-            console.log('[NAV] ROUTE_INCREMENTAL_SOURCE_UPDATE', {
-              seq, source: 'polling',
-              reason: 'mt_dstar_mid_route_geometry_changed',
-              sameBody: true,
-              fullSignatureChanged: true,
-              incomingPathLen: incomingPath.length,
-              currentPathLen: prevFull ? parseInt(prevFull.split(':')[0], 10) : null,
-              routeVersionBefore: routeVersionRef.current,
-              replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow,
-            });
-            console.log('[NAV] APPLY_NEW_ROUTE', {
-              seq, sessionId, pathLen: incomingPath.length,
-              first: incomingPath[0], last: incomingPath[incomingPath.length - 1],
-              status: updateData.status, replanType: replanTypeNow,
-              mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-            });
           } else {
-            truthSkipReason = 'tail_only_agent_trim';
-            console.log('[NAV] ROUTE_INCREMENTAL_SOURCE_SKIPPED', {
-              seq, source: 'polling',
-              reason: 'tail_only_agent_trim',
-              sameBody: true,
-              fullSignatureChanged: incomingFull !== prevFull,
-              incomingPathLen: incomingPath.length,
-              currentPathLen: prevFull ? parseInt(prevFull.split(':')[0], 10) : null,
-              routeVersionBefore: routeVersionRef.current,
-              replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow,
-            });
           }
-          console.log('[NAV] ROUTE_TAIL_ONLY_UPDATE_APPLIED', {
-            seq, source: 'polling',
-            oldFullSignature: prevFull, newFullSignature: incomingFull,
-            bodySignature: incomingBody, pathLen: incomingPath.length,
-            routeVersionUnchanged: !tailChanged,
-            tailChanged,
-            replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow,
-          });
         } else {
           // Branch 5: Route body changed without Mapbox API call (MT-D* replanned on its own)
           // Source key NOT incremented — setData on existing Source is sufficient
           setPath(incomingPath);
           incrementRouteVersion();
-          console.log('[NAV] ROUTE_SOURCE_REMOUNT_BLOCKED', {
-            source: 'polling', reason: 'mt_dstar_new_body_no_mapbox',
-            routeVersion: routeVersionRef.current, routeSourceKey: routeSourceKeyRef.current,
-          });
           lastAppliedFullSigRef.current = incomingFull;
           lastAppliedBodySigRef.current = incomingBody;
           lastAppliedTailSigRef.current = incomingTail;
-          truthSetPathCalled = true; truthRouteVersionIncremented = true;
-          truthUpdateReason = 'new_body_geometry';
-          console.log('[NAV] ROUTE_UPDATE_APPLIED_NEW_BODY_GEOMETRY', {
-            seq, source: 'polling',
-            oldBodySignature: prevBody, newBodySignature: incomingBody,
-            pathLen: incomingPath.length, routeVersionWillIncrement: true,
-            replanType: replanTypeNow, mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
-          console.log('[NAV] APPLY_NEW_ROUTE', {
-            seq, sessionId, pathLen: incomingPath.length,
-            first: incomingPath[0], last: incomingPath[incomingPath.length - 1],
-            status: updateData.status, replanType: replanTypeNow,
-            mapboxApiCalled: mapboxCalledNow, refetchReason: refetchReasonNow,
-          });
         }
 
-        console.log('[NAV] NAV_FRONTEND_PATH_TRUTH', {
-          seq,
-          status: updateData.status,
-          replanType: updateMeta.lastMetric?.replanType ?? null,
-          mapboxApiCalled: updateMeta.lastMetric?.mapboxApiCalled ?? false,
-          incomingPathLen: incomingPath.length,
-          incomingFullSignature: incomingFull,
-          incomingBodySignature: incomingBody,
-          incomingTailSignature: incomingTail,
-          prevFullSignature: prevFull,
-          prevBodySignature: prevBody,
-          prevTailSignature: prevTail,
-          setPathCalled: truthSetPathCalled,
-          routeVersionIncremented: truthRouteVersionIncremented,
-          routeVersionBefore: truthRouteVersionBefore,
-          routeVersionAfter: routeVersionRef.current,
-          updateReason: truthUpdateReason,
-          skipReason: truthSkipReason,
-        });
         {
-          const classified = classifyUpdateResult(updateData);
-          recordResearchResult({
-            classification: classified.classification,
-            success: classified.classification === 'SUCCESS',
-            failureReason: classified.failureReason,
-            responseReceivedAt,
-            status: updateData.status,
-            pathLen: updateData.path.length,
-            replanType: updateMeta.lastMetric?.replanType ?? null,
-            stepMs: updateMeta.lastMetric?.stepMs ?? null,
-            totalMs: updateMeta.lastMetric?.totalMs ?? null,
-            targetCoveredBySessionGraph: updateMeta.lastMetric?.targetCoveredBySessionGraph ?? null,
-            targetCoverageReason: updateMeta.lastMetric?.targetCoverageReason ?? null,
-            refetchReason: updateMeta.refetchReason ?? updateMeta.lastMetric?.refetchReason ?? null,
-            pathReachesTarget: updateData.pathReachesTarget ?? updateMeta.lastMetric?.pathReachesTarget ?? null,
-            navMetric: updateMeta.lastMetric ?? null,
-          });
         }
 
         setDistance(updateData.totalCost || 0);
         setEta(updateData.estimatedTimeSeconds || 0);
         setRouteUxState('navigating');
 
-        console.log('[NAV] PATH_UPDATED', {
-          len: updateData.path.length,
-          first: updateData.path[0],
-          last: updateData.path[updateData.path.length - 1],
-        });
-        console.log('[NAV_UPDATE]', {
-          status:    updateData.status,
-          pathLen:   updateData.path.length,
-          totalCost: updateData.totalCost,
-          metric:    updateData.lastMetric,
-        });
 
         if (updateData.suggestedPollIntervalMs) {
           setPollMs(updateData.suggestedPollIntervalMs);
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') {
-          console.log('[NAV] NAV_UPDATE_REQUEST_ABORTED', { seq, sessionId });
-          recordResearchResult({
-            classification: 'FAILURE',
-            success: false,
-            failureReason: 'request_aborted',
-            responseReceivedAt: null,
-          });
           return;
         }
         console.error('[NAV] Polling error', { seq, sessionId, durationMs: Date.now() - startedAt, err });
-        recordResearchResult({
-          classification: 'FAILURE',
-          success: false,
-          failureReason: err instanceof Error ? err.message : String(err),
-          responseReceivedAt: null,
-        });
         setRouteUxState('routeTemporarilyUnavailable');
       } finally {
         isUpdateInFlightRef.current = false;

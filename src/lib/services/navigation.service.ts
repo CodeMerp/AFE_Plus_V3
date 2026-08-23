@@ -110,17 +110,15 @@ export class NavigationService {
 
   constructor() {
     this.apiBase = '';
-    this.log('API base (same-origin):', this.apiBase);
   }
 
-  async init(agentPos: LatLng, targetPos: LatLng, mode: NavigationMode = 'hybrid', runId?: string | null): Promise<InitResponse | ApiError> {
+  async init(agentPos: LatLng, targetPos: LatLng, mode: NavigationMode = 'hybrid'): Promise<InitResponse | ApiError> {
     try {
       const url = `${this.apiBase}/api/navigate/init`;
-      this.log('POST', url);
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentPos, targetPos, mode, ...(runId ? { runId } : {}) })
+        body: JSON.stringify({ agentPos, targetPos, mode })
       });
       
       if (res.status === 429) return { error: true, status: 429, rateLimit: true };
@@ -137,11 +135,9 @@ export class NavigationService {
     agentPos: LatLng,
     targetPos: LatLng,
     signal?: AbortSignal,
-    research?: { runId?: string | null; routeUpdateId?: string | null },
   ): Promise<(UpdateResponse & { sessionExpired?: boolean }) | ApiError> {
     try {
       const url = `${this.apiBase}/api/navigate/update`;
-      this.log('POST', url);
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,8 +145,6 @@ export class NavigationService {
           sessionId,
           agentPos,
           targetPos,
-          ...(research?.runId ? { runId: research.runId } : {}),
-          ...(research?.routeUpdateId ? { routeUpdateId: research.routeUpdateId } : {}),
         }),
         signal,
       });
@@ -166,12 +160,6 @@ export class NavigationService {
       // Rethrow AbortError so the caller can distinguish intentional cancellation
       if (err instanceof Error && err.name === 'AbortError') throw err;
       return { error: true, status: 500, message: getErrorMessage(err) };
-    }
-  }
-
-  private log(...args: unknown[]) {
-    if (typeof window !== 'undefined') {
-      console.info('[NavigationService]', ...args);
     }
   }
 }

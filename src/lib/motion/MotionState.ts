@@ -41,39 +41,6 @@ export interface MotionState {
     integratorTurnHeadingDeltaDeg: number;  // |bearing(progress+5m) - current bearing| (°)
     integratorTurnPhase:           string;  // 'STRAIGHT' | 'TURNING'
 
-    // ── M3-A Patch 0: Motion Diagnostic Fields ────────────────────────────────
-    routeVersion:                   number;  // backend route version observed by the visual loop
-    integratorTargetProgressDeltaM: number;  // Δ target progress since last GPS sample (< 0 = backward jitter)
-    progressLagM:                   number;  // max(0, targetProgress − routeProgress) — arc gap integrator must close
-    markerJumpMeters:               number;  // dist(nextVisual[n], nextVisual[n-1]) per rAF frame
-    dtMsRaw:                        number;  // rAF delta before clamping (ms)
-    dtMsClamped:                    number;  // rAF delta after clamping (ms)
-    longFrame:                      boolean; // raw rAF delta exceeded 50 ms
-    latestGpsSpeedMps:              number;  // raw GPS hardware speed (pos.coords.speed)
-    estimatedAgentSpeedMps:         number;  // speed estimated from position delta
-    effectiveSpeedMps:              number;  // speed latestAgentSpeedMpsRef provided to integrator this frame
-    visualSpeedMps:                 number;  // actual marker movement speed (markerJumpM / dtSec)
-    isMotionRouteNew:               boolean; // true this frame when Motion Route changed (migration occurred)
-    segmentIndex:                   number;  // accepted projection segment (-1 = unavailable)
-    projectionT:                    number;  // t parameter of last accepted GPS projection (0–1 within segment)
-    markerScreenX:                  number;  // marker screen X (CSS px; −1 = unavailable)
-    markerScreenY:                  number;  // marker screen Y (CSS px; −1 = unavailable)
-    markerScreenXPercent:           number;  // 0–100 percentage of viewport width (−1 = unavailable)
-    markerScreenYPercent:           number;  // 0–100 percentage of viewport height (−1 = unavailable)
-    distanceFromPreferredAnchorPx:  number;  // dist from preferred anchor (50 %, 65 %) in CSS px (−1 = unavailable)
-    cameraCenterLng:                number;
-    cameraCenterLat:                number;
-    lookAheadCenterLng:             number;
-    lookAheadCenterLat:             number;
-
-    // M3-D3a: camera center diagnostics (passive, NAV_DEBUG only)
-    cameraCenterToLookAheadDistanceM: number; // dist(smoothedCenter, targetCenter) — measures center lag
-    cameraCenterToMarkerDistanceM:    number; // dist(smoothedCenter, nextVisual) — should ≈ activeLookAheadM
-    bearingMismatchDeg:               number; // |shortestBearingDelta(βc, bearing(marker→camCenter))| — direction alignment error
-    activeLookAheadM:                 number; // current effective look-ahead distance (0→120m during soft-follow ramp)
-    cameraCenterSpeedMps:             number; // dist(prevCamCenter, smoothedCenter) / dtSec
-    cameraCenterAngularVelocityDegS:  number; // angular velocity of cam center around marker (°/s)
-
     // ── Camera layer (M2-A) ──────────────────────────────────────────────────
     cameraBearingSource: string;  // 'integrator' | RouteUpBearingSource values
 
@@ -87,9 +54,6 @@ export interface MotionState {
     visualCameraBearing:  number;      // smoothly lerped camera heading (°)
     targetCameraBearing:  number;      // route-up bearing target for camera lerp (°)
 
-    // ── Derived metrics ───────────────────────────────────────────────────────
-    markerLagM:           number;      // distance visual lags behind projected position (m)
-
     // ── Qualitative signals ────────────────────────────────────────────────────
     isStationary:         boolean;     // GPS speed < 0.5 m/s
     isTurning:            boolean;     // bearing delta > CAMERA_TURN_DEAD_ZONE_DEG
@@ -97,7 +61,6 @@ export interface MotionState {
 
     // ── Frame timing ──────────────────────────────────────────────────────────
     lastFrameAt:          number;      // performance.now() of most recent rAF frame
-    frameCount:           number;      // cumulative rAF frames (diagnostic counter)
 }
 
 export function createInitialMotionState(initialPosition: LatLngPoint): MotionState {
@@ -130,37 +93,6 @@ export function createInitialMotionState(initialPosition: LatLngPoint): MotionSt
         integratorTurnHeadingDeltaDeg: 0,
         integratorTurnPhase:           'STRAIGHT',
 
-        routeVersion:                   0,
-        integratorTargetProgressDeltaM: 0,
-        progressLagM:                   0,
-        markerJumpMeters:               0,
-        dtMsRaw:                        0,
-        dtMsClamped:                    0,
-        longFrame:                      false,
-        latestGpsSpeedMps:              0,
-        estimatedAgentSpeedMps:         0,
-        effectiveSpeedMps:              0,
-        visualSpeedMps:                 0,
-        isMotionRouteNew:               false,
-        segmentIndex:                   -1,
-        projectionT:                    0,
-        markerScreenX:                  -1,
-        markerScreenY:                  -1,
-        markerScreenXPercent:           -1,
-        markerScreenYPercent:           -1,
-        distanceFromPreferredAnchorPx:  -1,
-        cameraCenterLng:                initialPosition.lng,
-        cameraCenterLat:                initialPosition.lat,
-        lookAheadCenterLng:             initialPosition.lng,
-        lookAheadCenterLat:             initialPosition.lat,
-
-        cameraCenterToLookAheadDistanceM: 0,
-        cameraCenterToMarkerDistanceM:    0,
-        bearingMismatchDeg:               0,
-        activeLookAheadM:                 0,
-        cameraCenterSpeedMps:             0,
-        cameraCenterAngularVelocityDegS:  0,
-
         cameraBearingSource: 'fallback',
 
         visualPosition:       initialPosition,
@@ -171,13 +103,10 @@ export function createInitialMotionState(initialPosition: LatLngPoint): MotionSt
         visualCameraBearing:  0,
         targetCameraBearing:  0,
 
-        markerLagM:           0,
-
         isStationary:         true,
         isTurning:            false,
         hasMovementDetected:  false,
 
         lastFrameAt:          0,
-        frameCount:           0,
     };
 }
