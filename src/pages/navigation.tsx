@@ -3646,7 +3646,7 @@ function NavigationScreen() {
 
 
             {/* --- 2. ปุ่มด้านขวา --- */}
-            <div className="absolute top-[150px] right-4 z-10 flex flex-col gap-3">
+            <div className="absolute top-[150px] right-4 z-10 flex flex-col gap-[12px]">
                 <div
                     className="transition-opacity duration-300 flex justify-end"
                     style={{
@@ -3693,7 +3693,7 @@ function NavigationScreen() {
                 </div>
                 <button
                     onClick={() => setIsSoundOn(!isSoundOn)}
-                    className="w-[55px] h-[55px] bg-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                    className="w-[55px] h-[55px] bg-white rounded-full flex items-center justify-center shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)] active:scale-95 transition-transform"
                 >
                     {isSoundOn ? <Volume2 className="text-[#1B5E20] w-[28px] h-[28px]" /> : <VolumeX className="text-gray-500 w-[28px] h-[28px]" />}
                 </button>
@@ -3704,7 +3704,7 @@ function NavigationScreen() {
                 <div className="absolute bottom-[140px] left-4 z-10 animate-in fade-in zoom-in duration-200">
                     <button
                         onClick={handleRecenter}
-                        className="flex items-center gap-2 px-[16px] py-[10px] bg-white rounded-full shadow-lg active:scale-95 transition-transform border border-gray-100"
+                        className="flex items-center gap-2 px-[16px] py-[10px] bg-white rounded-full shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)] active:scale-95 transition-transform border-[1px] border-solid border-[#F3F4F6]"
                     >
                         <NavIcon className="text-[#4285F4] w-5 h-5" />
                         <span className="text-gray-800 font-medium text-[15px]">ปรับจุดกลาง</span>
@@ -3713,7 +3713,7 @@ function NavigationScreen() {
             )}
 
             {/* --- 4. แถบสถานะด้านล่าง --- */}
-            <div className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-[30px] shadow-[0_-10px_30px_rgba(0,0,0,0.1)] px-[25px] pt-5 pb-[calc(2.2rem+env(safe-area-inset-bottom))]">
+            <div className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-[30px] shadow-[0_-10px_30px_rgba(0,0,0,0.1)] px-[25px] pt-[20px] pb-[calc(2.2rem+env(safe-area-inset-bottom))]">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col">
                         <div className="flex items-baseline gap-1.5">

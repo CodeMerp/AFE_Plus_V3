@@ -37,7 +37,7 @@ export default function TopNavigationBanner({
                 }`}
             style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
         >
-            <div className="bg-[#0F5338] rounded-[18px] p-5 flex items-center shadow-[0_5px_12px_rgba(0,0,0,0.25)]">
+            <div className="bg-[#0F5338] rounded-[18px] p-[20px] flex items-center shadow-[0_5px_12px_rgba(0,0,0,0.25)]">
 
                 {/* ฝั่งซ้าย: Icon + ระยะทาง */}
                 <div className="flex flex-col items-center min-w-[70px]">
@@ -65,7 +65,7 @@ export default function TopNavigationBanner({
                         <button
                             type="button"
                             onClick={onAction}
-                            className="mt-1.5 rounded-full bg-white/20 px-3 py-1 text-[13px] font-semibold text-white active:scale-95"
+                            className="mt-1.5 rounded-full bg-white/20 px-[12px] py-1 text-[13px] font-semibold text-white active:scale-95"
                         >
                             {action}
                         </button>
