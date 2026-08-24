@@ -1,6 +1,11 @@
 import type { NavigationManeuverType } from './types';
 
 export const NAVIGATION_VOICE_THRESHOLDS_M = [200, 100, 50] as const;
+
+/** Repeat interval for the long-stretch reassurance cue. */
+export const NAVIGATION_VOICE_STRAIGHT_INTERVAL_MS = 120_000;
+/** Only reassure when the next turn is at least this far away. */
+export const NAVIGATION_VOICE_STRAIGHT_MIN_CLEAR_M = 400;
 export type NavigationVoiceThresholdM = typeof NAVIGATION_VOICE_THRESHOLDS_M[number];
 
 export type NavigationVoiceEvent =
@@ -11,6 +16,7 @@ export type NavigationVoiceEvent =
       instructionText: string;
       maneuverIdentity: string;
     }
+  | { kind: 'CONTINUE_STRAIGHT' }
   | { kind: 'NEAR_ARRIVAL' }
   | { kind: 'ARRIVED' };
 
@@ -33,6 +39,7 @@ export type NavigationVoiceControllerState = {
   arrivedConsumed: boolean;
   maneuverPresentationWasOwned: boolean;
   maneuverLedgers: Record<string, ManeuverThresholdLedger>;
+  lastStraightAtMs: number | null;
 };
 
 export type NavigationVoiceControllerInput = {
@@ -43,6 +50,10 @@ export type NavigationVoiceControllerInput = {
   currentManeuver: VoiceManeuverObservation | null;
   nearArrival: boolean;
   arrived: boolean;
+  /** Monotonic clock for the straight-ahead cue. Optional so existing
+   *  deterministic suites and callers that do not use the cue compile
+   *  unchanged; omitting it simply never arms the interval. */
+  nowMs?: number;
 };
 
 export type NavigationVoiceControllerResult = {
@@ -60,6 +71,7 @@ export function createNavigationVoiceControllerState(
     arrivedConsumed: false,
     maneuverPresentationWasOwned: false,
     maneuverLedgers: {},
+    lastStraightAtMs: null,
   };
 }
 
@@ -101,6 +113,7 @@ export function advanceNavigationVoiceController(
         arrivedConsumed: false,
         maneuverPresentationWasOwned: false,
         maneuverLedgers: {},
+        lastStraightAtMs: null,
       }
     : {
         ...previousState,
@@ -128,22 +141,32 @@ export function advanceNavigationVoiceController(
     if (!existingLedger) {
       state.maneuverLedgers[identity] = initialLedger(currentDistanceM);
     } else {
-      const crossed = NAVIGATION_VOICE_THRESHOLDS_M.filter((thresholdM) => (
+      // A threshold is DUE while the agent is at or inside it and it has not
+      // been announced yet. Previously this used a strict crossing test
+      // (previous > t && current <= t) and marked the threshold consumed
+      // BEFORE the eligibility gate below — so a single frame in which
+      // guidance/presentation ownership dipped at the crossing instant
+      // swallowed that warning permanently while the top bar kept showing the
+      // turn. Thresholds already passed when the maneuver was first seen stay
+      // pre-consumed by initialLedger, so this never announces a turn the
+      // agent had already driven past.
+      const due = NAVIGATION_VOICE_THRESHOLDS_M.filter((thresholdM) => (
         !existingLedger.consumed[thresholdM]
-        && existingLedger.previousDistanceM > thresholdM
         && currentDistanceM <= thresholdM
       ));
 
-      for (const thresholdM of crossed) existingLedger.consumed[thresholdM] = true;
       existingLedger.previousDistanceM = currentDistanceM;
 
       if (
-        crossed.length > 0
+        due.length > 0
         && input.guidanceAvailable
         && input.maneuverPresentationOwned
         && state.maneuverPresentationWasOwned
       ) {
-        const thresholdM = crossed[crossed.length - 1];
+        // Consume only what is actually announced; the smallest due threshold
+        // wins and the coarser ones it overtook are consumed with it.
+        for (const thresholdM of due) existingLedger.consumed[thresholdM] = true;
+        const thresholdM = due[due.length - 1];
         maneuverEvent = {
           kind: 'MANEUVER_THRESHOLD',
           thresholdM,
@@ -151,6 +174,28 @@ export function advanceNavigationVoiceController(
           maneuverIdentity: identity,
         };
       }
+    }
+  }
+
+  // Long clear stretch reassurance. Eligible only while guidance owns the
+  // presentation and the next turn (if any) is comfortably far away.
+  let straightEvent: NavigationVoiceEvent | null = null;
+  const distanceToNextTurnM = observation && Number.isFinite(observation.distanceToManeuverM)
+    ? Math.max(0, observation.distanceToManeuverM)
+    : Infinity;
+  const roadAhead = input.guidanceAvailable
+    && input.maneuverPresentationOwned
+    && distanceToNextTurnM >= NAVIGATION_VOICE_STRAIGHT_MIN_CLEAR_M;
+  if (roadAhead && !input.nearArrival && !input.arrived) {
+    const nowMs = input.nowMs;
+    const dueAt = state.lastStraightAtMs === null
+      ? null
+      : state.lastStraightAtMs + NAVIGATION_VOICE_STRAIGHT_INTERVAL_MS;
+    if (nowMs !== undefined && (dueAt === null || nowMs >= dueAt)) {
+      state.lastStraightAtMs = nowMs;
+      // The very first evaluation only arms the interval; it does not speak,
+      // so START is never immediately followed by a straight-ahead cue.
+      if (dueAt !== null) straightEvent = { kind: 'CONTINUE_STRAIGHT' };
     }
   }
 
@@ -172,6 +217,6 @@ export function advanceNavigationVoiceController(
 
   return {
     state,
-    event: arrivedEvent ?? nearArrivalEvent ?? maneuverEvent ?? startEvent,
+    event: arrivedEvent ?? nearArrivalEvent ?? maneuverEvent ?? startEvent ?? straightEvent,
   };
 }

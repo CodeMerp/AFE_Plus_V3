@@ -3061,6 +3061,7 @@ function NavigationScreen() {
         nearArrival: navigationDistanceDisplay.isNearArrival,
         arrived: status === 'arrived' || hasArrived,
         soundEnabled: isSoundOn,
+        nowMs: Date.now(),
     });
 
     const topBannerManeuverIcon = useMemo(() => {
@@ -3637,11 +3638,11 @@ function NavigationScreen() {
 
             {/* --- 4. แถบสถานะด้านล่าง --- */}
             <div className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-[30px] shadow-[0_-10px_30px_rgba(0,0,0,0.1)] px-[25px] pt-[20px] pb-[calc(2.2rem+env(safe-area-inset-bottom))]">
-                <div className="flex items-center justify-between">
-                    <div className="flex flex-col">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5">
                             {status === 'arrived' ? (
-                                <span className="text-[#1B5E20] text-[30px] font-extrabold leading-none tracking-tight">เสร็จสิ้น</span>
+                                <span className="text-[#1B5E20] text-[26px] font-extrabold leading-none tracking-tight whitespace-nowrap">ถึงจุดหมายแล้ว</span>
                             ) : (
                                 <>
                                     {durationHrs > 0 && (
@@ -3655,7 +3656,7 @@ function NavigationScreen() {
                                 </>
                             )}
                         </div>
-                        <p className="text-[#5F6368] text-[20px] mt-1 font-normal leading-none">
+                        <p className="text-[#5F6368] text-[18px] mt-1 font-normal leading-none whitespace-nowrap overflow-hidden text-ellipsis">
                             {status === 'arrived'
                                 ? 'การนำทางเสร็จสิ้น'
                                 : `${navigationDistanceDisplay.displayRemainingDistance > 1000
@@ -3669,7 +3670,7 @@ function NavigationScreen() {
                             stop();
                             router.back();
                         }}
-                        className="bg-[#E31E24] text-white px-[32px] py-[14px] rounded-[24px] text-[22px] font-bold shadow-md active:scale-95 transition-transform"
+                        className="shrink-0 whitespace-nowrap bg-[#E31E24] text-white px-[20px] py-[14px] rounded-[24px] text-[20px] font-bold shadow-md active:scale-95 transition-transform"
                     >
                         {status === 'arrived' ? 'สิ้นสุดการนำทาง' : 'ออก'}
                     </button>

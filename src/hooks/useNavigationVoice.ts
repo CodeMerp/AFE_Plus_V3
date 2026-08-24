@@ -68,6 +68,7 @@ export function useNavigationVoice(input: UseNavigationVoiceInput): {
       currentManeuver: input.currentManeuver,
       nearArrival: input.nearArrival,
       arrived: input.arrived,
+      nowMs: input.nowMs,
     };
     const result = processNavigationVoiceUpdate(
       controllerStateRef.current,

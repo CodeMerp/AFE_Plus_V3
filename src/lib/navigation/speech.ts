@@ -104,6 +104,8 @@ export function navigationVoiceEventText(event: NavigationVoiceEvent): string {
       return 'เริ่มนำทาง';
     case 'MANEUVER_THRESHOLD':
       return `อีก ${event.thresholdM} เมตร ${event.instructionText}`;
+    case 'CONTINUE_STRAIGHT':
+      return 'ขับตรงไปตามเส้นทาง';
     case 'NEAR_ARRIVAL':
       return 'ใกล้ถึงจุดหมายแล้ว';
     case 'ARRIVED':
