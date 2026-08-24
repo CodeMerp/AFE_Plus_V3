@@ -3417,7 +3417,7 @@ function NavigationScreen() {
         return (
             <main className="flex min-h-[100dvh] items-center justify-center bg-gray-50 px-6 text-center font-sans">
                 <h1 className="text-2xl font-bold text-gray-900">
-                    กำลังรอตำแหน่งผู้ถูกดูแล...
+                    กำลังรอตำแหน่ง...
                 </h1>
             </main>
         );
