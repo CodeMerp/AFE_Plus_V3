@@ -478,6 +478,14 @@ const Location = () => {
         !hasValidTargetPosition ||
         !hasResolvedNavigationIdentity;
 
+    // Mobile handoff URI — matches the Flutter app's NavigationLaunchContext
+    // .fromUri contract (scheme `afeplus`, host `navigation`; required
+    // users_id/takecare_id, optional idlocation). auToken is deliberately NOT
+    // forwarded: it is the LINE user id that withRlsAuth accepts as a
+    // credential, and any app may register the `afeplus` scheme and intercept
+    // the link. The Flutter app never reads it — the endpoints it calls
+    // (/api/navigate/target-location, /api/setting/getSafezone) use withRls,
+    // not withRlsAuth — so omitting it costs nothing.
     const mobileAppNativeHref = useMemo(() => {
         if (!hasResolvedNavigationIdentity) return null;
         const params = new URLSearchParams();
@@ -486,15 +494,11 @@ const Location = () => {
         if (typeof router.query.idlocation === 'string' && router.query.idlocation) {
             params.set('idlocation', router.query.idlocation);
         }
-        if (typeof router.query.auToken === 'string' && router.query.auToken) {
-            params.set('auToken', router.query.auToken);
-        }
         return `afeplus://navigation?${params.toString()}`;
     }, [
         dataUser.takecareData?.takecare_id,
         dataUser.userData?.users_id,
         hasResolvedNavigationIdentity,
-        router.query.auToken,
         router.query.idlocation,
     ]);
     const handleMobileAppNative = useCallback(() => {
