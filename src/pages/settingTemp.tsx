@@ -44,6 +44,17 @@ const TemperatureSetting = () => {
     const auToken = router.query.auToken
     if (auToken) {
       fetchUserData(auToken as string)
+      return
+    }
+
+    // Development-only: inject mock user/takecare so page can be tested without LINE
+    if (!auToken && process.env.NODE_ENV === 'development') {
+      setDataUser({
+        isLogin: true,
+        userData: { users_id: 1, users_line_id: 'dev-mock' },
+        takecareData: { takecare_id: 1 }
+      })
+      setLoading(false)
     }
   }, [router.query.auToken])
 
