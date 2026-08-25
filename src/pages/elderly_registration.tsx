@@ -72,6 +72,8 @@ const ElderlyRegistration = () => {
     const [confirmShow, setConfirmShow] = useState(false);
     const [pendingData, setPendingData] = useState<ElderlyRegistrationFormData | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [sameAddress, setSameAddress] = useState(false);
+    const [isLoadingCaregiverAddress, setIsLoadingCaregiverAddress] = useState(false);
 
     // 🔥 เรียกใช้ Thai Address Hook
     const { data, status, selected, actions, getNames, getLabel } = useThaiAddress();
@@ -236,6 +238,49 @@ const ElderlyRegistration = () => {
                 autoCloseMs: undefined,
                 messageClassName: undefined
             })
+        }
+    }
+
+    const handleUseCaregiverAddress = async () => {
+        if (!dataUser.users_id) {
+            setAlert({ show: true, message: 'ไม่พบข้อมูลผู้ใช้', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
+            return;
+        }
+
+        setIsLoadingCaregiverAddress(true);
+        try {
+            const encodedUsersId = encrypt(dataUser.users_id.toString());
+            const response = await axios.get(`/api/user/getUserCaregiver/${encodedUsersId}`);
+            const caregiver = response.data?.data;
+            if (caregiver) {
+                setValue('takecare_fname', caregiver.takecare_fname || '');
+                setValue('takecare_sname', caregiver.takecare_sname || '');
+                setValue('takecare_tel1', caregiver.takecare_tel1 || '');
+                setValue('takecare_tel_home', caregiver.takecare_tel_home || '');
+                setValue('takecare_number', caregiver.takecare_number || '');
+                setValue('takecare_moo', caregiver.takecare_moo || '');
+                setValue('takecare_road', caregiver.takecare_road || '');
+                setValue('takecare_tubon', caregiver.takecare_tubon || '');
+                setValue('takecare_amphur', caregiver.takecare_amphur || '');
+                setValue('takecare_province', caregiver.takecare_province || '');
+                setValue('takecare_postcode', caregiver.takecare_postcode || '');
+
+                // Set dropdowns for SelectAddress
+                actions.setInitialValues(
+                    caregiver.takecare_province || '',
+                    caregiver.takecare_amphur || '',
+                    caregiver.takecare_tubon || '',
+                    caregiver.takecare_postcode || ''
+                );
+
+                setSameAddress(true);
+            } else {
+                setAlert({ show: true, message: 'ไม่พบข้อมูลผู้ดูแล', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
+            }
+        } catch (error) {
+            setAlert({ show: true, message: 'เกิดข้อผิดพลาดขณะดึงข้อมูลที่อยู่', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
+        } finally {
+            setIsLoadingCaregiverAddress(false);
         }
     }
 
