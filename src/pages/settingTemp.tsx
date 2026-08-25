@@ -3,95 +3,59 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import axios from 'axios'
 
-import Spinner from 'react-bootstrap/Spinner'
-import Container from 'react-bootstrap/Container'
-import Row from 'react-bootstrap/Row'
-import Col from 'react-bootstrap/Col'
-import ButtonState from '@/components/Button/ButtonState'
 import ModalAlert from '@/components/Modals/ModalAlert'
-import RangeSlider from '@/components/RangeSlider/RangeSlider'
 import { encrypt } from '@/utils/helpers'
-import Card from 'react-bootstrap/Card'
-import Badge from 'react-bootstrap/Badge'
-
-
-interface DataUserState {
-  isLogin: boolean
-  userData: any | null
-  takecareData: any | null
-}
 
 const TemperatureSetting = () => {
   const router = useRouter()
 
-  // State สำหรับ modal แจ้งเตือน
   const [alert, setAlert] = useState({ show: false, message: '' })
-  // State สำหรับ loading ขณะดึงข้อมูลหรือบันทึก
   const [isLoading, setLoading] = useState(false)
-  // ข้อมูลผู้ใช้และผู้ดูแล
-  const [dataUser, setDataUser] = useState<DataUserState>({
-    isLogin: false,
-    userData: null,
-    takecareData: null,
-  })
-  // รหัส setting ที่ดึงหรือสร้างใหม่
+  const [dataUser, setDataUser] = useState<{ isLogin: boolean; userData: any | null; takecareData: any | null }>({ isLogin: false, userData: null, takecareData: null })
   const [idSetting, setIdSetting] = useState<number | null>(null)
-  // ค่าอุณหภูมิสูงสุดที่ตั้งไว้
-  const [maxTemperature, setMaxTemperature] = useState<number>(37)
+  const [maxTemperature, setMaxTemperature] = useState<number>(37.8)
 
-  // เมื่อ auToken ใน query เปลี่ยน จะดึงข้อมูลผู้ใช้
+  // min/max per UI
+  const MIN = 35
+  const MAX = 42
+
   useEffect(() => {
     const auToken = router.query.auToken
     if (auToken) {
       fetchUserData(auToken as string)
       return
     }
-
-    // Development-only: inject mock user/takecare so page can be tested without LINE
     if (!auToken && process.env.NODE_ENV === 'development') {
-      setDataUser({
-        isLogin: true,
-        userData: { users_id: 1, users_line_id: 'dev-mock' },
-        takecareData: { takecare_id: 1 }
-      })
+      setDataUser({ isLogin: true, userData: { users_id: 1, users_line_id: 'dev-mock' }, takecareData: { takecare_id: 1 } })
       setLoading(false)
     }
   }, [router.query.auToken])
 
-  // ฟังก์ชันดึงข้อมูลผู้ใช้และผู้ดูแล
   const fetchUserData = async (auToken: string) => {
     try {
       const responseUser = await axios.get(`/api/user/getUser/${auToken}`)
       if (responseUser.data?.data) {
         const encodedUsersId = encrypt(responseUser.data.data.users_id.toString())
-        const responseTakecare = await axios.get(
-          `/api/user/getUserTakecareperson/${encodedUsersId}`
-        )
+        const responseTakecare = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`)
         const takecareData = responseTakecare.data?.data
         if (takecareData) {
           setDataUser({ isLogin: true, userData: responseUser.data.data, takecareData: takecareData })
           const settingIdParam = router.query.idsetting
-          if (settingIdParam && Number(settingIdParam) > 0) {
-            fetchTemperatureSetting(Number(settingIdParam))
-          }
+          if (settingIdParam && Number(settingIdParam) > 0) fetchTemperatureSetting(Number(settingIdParam))
         } else {
           showAlert('ไม่พบข้อมูลผู้ดูแล')
         }
-      } else {
-        showAlert('ไม่พบข้อมูลผู้ใช้')
-      }
+      } else showAlert('ไม่พบข้อมูลผู้ใช้')
     } catch (error) {
       showAlert('ระบบไม่สามารถดึงข้อมูลของท่านได้ กรุณาลองใหม่อีกครั้ง')
     }
   }
 
-  // ฟังก์ชันดึงข้อมูลการตั้งค่าอุณหภูมิ
   const fetchTemperatureSetting = async (settingId: number) => {
     try {
       const res = await axios.get(`/api/setting/getTemperature?setting_id=${settingId}`)
       if (res.data?.data) {
-        const data = res.data.data
-        setMaxTemperature(Number(data.max_temperature))
+        setMaxTemperature(Number(res.data.data.max_temperature))
         setIdSetting(settingId)
       }
     } catch (error) {
@@ -99,12 +63,8 @@ const TemperatureSetting = () => {
     }
   }
 
-  // แสดง modal แจ้งเตือน
-  const showAlert = (message: string) => {
-    setAlert({ show: true, message })
-  }
+  const showAlert = (message: string) => setAlert({ show: true, message })
 
-  // บันทึกข้อมูลอุณหภูมิ
   const handleSave = async () => {
     if (!dataUser.takecareData || !dataUser.userData) {
       showAlert('ไม่พบข้อมูลผู้ใช้งาน')
@@ -117,9 +77,7 @@ const TemperatureSetting = () => {
         users_id: dataUser.userData.users_id,
         max_temperature: maxTemperature,
       }
-      if (idSetting) {
-        payload.setting_id = idSetting
-      }
+      if (idSetting) payload.setting_id = idSetting
       const res = await axios.post(`/api/setting/saveTemperature`, payload)
       if (res.data?.id) {
         setIdSetting(res.data.id)
@@ -132,67 +90,151 @@ const TemperatureSetting = () => {
     setLoading(false)
   }
 
+  const updateValue = (value: number) => {
+    let v = Number(value)
+    if (isNaN(v)) return
+    if (v < MIN) v = MIN
+    if (v > MAX) v = MAX
+    setMaxTemperature(Number(v.toFixed(1)))
+  }
+
+  const stepValue = (step: number) => updateValue(Number((maxTemperature + step).toFixed(1)))
+
+  // theme mapping
+  const getTheme = () => {
+    if (maxTemperature >= 38.0) return 'theme-danger'
+    if (maxTemperature >= 37.3) return 'theme-warning'
+    if (maxTemperature < 36.0) return 'theme-cool'
+    return 'theme-disabled'
+  }
+
   return (
     <>
       {!dataUser.isLogin ? (
-        <div className="d-flex justify-content-center align-items-center" style={{ height: '80vh' }}>
-          <Spinner animation="border" variant="primary" />
+        <div id="loader">
+          <div className="spinner" />
         </div>
       ) : (
-        <Container className="d-flex justify-content-center align-items-center min-vh-100" style={{ background: "#f7fafd" }}>
-          <div
-            className="shadow"
-            style={{
-              background: "#fff",
-              borderRadius: 24,
-              padding: "32px 24px 28px 24px",
-              maxWidth: 380,
-              width: "100%",
-              boxShadow: "0 2px 24px 0 rgba(0,0,0,0.07)"
-            }}
-          >
-            <div className="text-center mb-3">
-              {/* SVG ไอคอนอุณหภูมิ */}
-              <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24"><path fill="#000" d="M14 4.5a4.5 4.5 0 0 0-9 0v9.44a.23.23 0 0 1-.06.16a6 6 0 1 0 9.12 0a.23.23 0 0 1-.06-.16ZM9.5 22a4 4 0 0 1-2.8-6.86a1 1 0 0 0 .3-.71V4.5a2.5 2.5 0 0 1 5 0v9.93a1 1 0 0 0 .3.71A4 4 0 0 1 9.5 22" /><path fill="#000" d="M10.61 16.34a.26.26 0 0 1-.11-.21V8.5a1 1 0 0 0-2 0v7.63a.26.26 0 0 1-.11.21a2 2 0 1 0 2.22 0m8.89-4.84H17a1 1 0 0 0 0 2h2.5a1 1 0 0 0 0-2m-2.5-6h2.5a1 1 0 0 0 0-2H17a1 1 0 0 0 0 2m2.5 2H17a1 1 0 0 0 0 2h2.5a1 1 0 0 0 0-2" /></svg>
-            </div>
-            <div className="text-center mb-3">
-              <h2 style={{ fontWeight: 700, color: "#2c3746", marginBottom: 12, fontSize: 26, lineHeight: 1.2 }}>
-                ตั้งค่าการแจ้งเตือน<br />อุณหภูมิร่างกาย
-              </h2>
-            </div>
-            <Card className="mb-3" style={{ borderRadius: 16, border: '1px solid #eef1f6' }}>
-              <Card.Body style={{ padding: '12px 14px' }}>
-                <Badge bg="light" text="dark" style={{ border: '1px solid #e8ecf3' }}>คำแนะนำ</Badge>
-                <div style={{ fontSize: 14, color: '#48526b', marginTop: 8 }}>
-                  อุณหภูมิร่างกายทั่วไปอยู่ที่: <strong>36.5–37.5°C</strong><br />
+        <div>
+          <style jsx global>{`
+/* pasted CSS from design */
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap');
+:root{--primary-color:#1DB446;--primary-dark:#159135;--bg-color:#f4f7f6;--text-main:#2c3e50;--text-light:#7f8c8d;--border-color:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Kanit',sans-serif;-webkit-tap-highlight-color:transparent}
+body{background-color:var(--bg-color);color:var(--text-main);display:flex;flex-direction:column;height:100vh}
+.header{background:linear-gradient(135deg,var(--primary-color) 0%,var(--primary-dark) 100%);color:white;padding:18px 24px;font-size:1.3rem;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,0.08);display:flex;align-items:center;z-index:10}
+.header-icon{margin-right:12px;font-size:1.5rem}
+.main-layout{display:flex;flex:1;flex-direction:column;overflow:hidden}
+.tabs-container{display:flex;background:white;box-shadow:0 2px 5px rgba(0,0,0,0.02);z-index:9}
+.tab-btn{flex:1;padding:14px 8px;background:none;border:none;font-size:1rem;font-weight:500;color:var(--text-light);border-bottom:3px solid transparent;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:4px}
+.tab-btn.active{color:var(--primary-dark);font-weight:600;border-bottom-color:var(--primary-color)}
+.tab-btn .tab-icon{font-size:1.3rem}
+.content-area{flex:1;padding:20px;overflow-y:auto}
+.form-container{background:white;padding:24px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.03);border:1px solid var(--border-color);margin-bottom:90px;display:none}
+.form-container.active{display:block;animation:fadeIn .3s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.form-section-title{color:var(--primary-dark);font-size:1.25rem;font-weight:600;margin-bottom:24px;display:flex;align-items:center;gap:10px}
+.form-section-title::before{content:'';width:4px;height:20px;background:var(--primary-color);border-radius:4px}
+.form-group{margin-bottom:24px;background:#fafcfa;padding:16px;border-radius:12px;border:1px solid #edf2f7;transition:opacity .3s}
+.form-label{display:flex;justify-content:space-between;align-items:center;font-size:1.05rem;font-weight:500;margin-bottom:8px}
+.value-badge{background:#e8f5e9;color:var(--primary-dark);padding:4px 12px;border-radius:20px;font-weight:600;font-size:1rem;transition:all .3s}
+.toggle-row{display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;padding:14px 16px;border-radius:12px;margin-bottom:16px}
+.toggle-title{font-size:1.05rem;font-weight:500;color:var(--text-main)}
+.toggle-desc{font-size:.85rem;color:var(--text-light)}
+.switch{position:relative;display:inline-block;width:52px;height:28px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.slider-round{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#cbd5e1;transition:.3s;border-radius:34px}
+.slider-round:before{position:absolute;content:"";height:22px;width:22px;left:3px;bottom:3px;background-color:white;transition:.3s;border-radius:50%;box-shadow:0 2px 4px rgba(0,0,0,0.15)}
+input:checked+.slider-round{background-color:var(--primary-color)}
+input:checked+.slider-round:before{transform:translateX(24px)}
+.controls-disabled{opacity:.45;pointer-events:none;user-select:none}
+.default-recommend-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:8px;border-bottom:1px dashed #e2e8f0}
+.recommend-text{font-size:.85rem;color:#64748b}
+.recommend-text b{color:#0f172a}
+.btn-preset{background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-size:.8rem;font-weight:500;padding:4px 10px;border-radius:6px;cursor:pointer;transition:all .2s}
+.btn-preset:active{background:#e2e8f0;transform:scale(.96)}
+.control-layout{display:flex;flex-direction:column;gap:16px}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;background:#e2e8f0;border-radius:4px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:white;border:3px solid var(--primary-color);box-shadow:0 2px 6px rgba(0,0,0,0.15);cursor:pointer;transition:border-color .3s}
+.stepper-wrapper{display:flex;align-items:center;justify-content:space-between;background:white;border:1px solid var(--border-color);border-radius:12px;overflow:hidden}
+.btn-step{width:50px;height:50px;background:#f8fafc;border:none;font-size:1.5rem;color:var(--text-main);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.btn-step:active{background:#e2e8f0}.btn-step:disabled{color:#cbd5e1;cursor:not-allowed;background:#f8fafc}
+.form-control-number{flex:1;text-align:center;border:none;font-size:1.2rem;font-weight:600;color:var(--text-main);background:white;padding:0;outline:none}
+.form-control-number::-webkit-outer-spin-button,.form-control-number::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.hint{font-size:.9rem;color:var(--text-light);margin-top:12px;display:flex;align-items:flex-start;gap:6px}
+.submit-container{position:fixed;bottom:0;left:0;width:100%;padding:16px 20px;background:white;box-shadow:0 -4px 12px rgba(0,0,0,0.05);z-index:20}
+.btn-submit{width:100%;padding:16px;background:var(--primary-color);color:white;border:none;border-radius:12px;font-size:1.15rem;font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(29,180,70,0.2);display:flex;justify-content:center;align-items:center;gap:8px}
+.btn-submit:active{transform:scale(.98)}
+#loader{position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:1000}
+.spinner{border:4px solid #f3f3f3;border-top:4px solid var(--primary-color);border-radius:50%;width:48px;height:48px;animation:spin 1s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.status-card{background:#f0fff4;border:1px solid #c6f6d5;border-radius:12px;padding:18px;display:flex;align-items:center;gap:16px;margin-bottom:20px;transition:all .3s}
+.status-icon{font-size:2.8rem;transition:all .3s;flex-shrink:0}
+.advice-text h4{color:#2f855a;font-size:1.15rem;margin-bottom:4px}
+.advice-text p{color:#4a5568;font-size:.92rem;line-height:1.45}
+.pulse-anim{animation:heartbeat 1.2s infinite cubic-bezier(.215,.61,.355,1)}
+@keyframes heartbeat{0%,100%{transform:scale(.95)}5%,25%{transform:scale(1.1)}15%{transform:scale(1.2)}50%{transform:scale(.95)}}
+.theme-warning .status-card{background:#fffbeb;border-color:#fef08a}
+.theme-warning .advice-text h4{color:#d97706}
+.theme-warning .value-badge{background:#fffbeb !important;color:#d97706 !important}
+.theme-warning input[type=range]::-webkit-slider-thumb{border-color:#d97706 !important}
+.theme-danger .status-card{background:#fff5f5;border-color:#fed7d7}
+.theme-danger .advice-text h4{color:#e53e3e}
+.theme-danger .value-badge{background:#fff5f5 !important;color:#e53e3e !important}
+.theme-danger input[type=range]::-webkit-slider-thumb{border-color:#e53e3e !important}
+.theme-cool .status-card{background:#ebf8ff;border-color:#bee3f8}
+.theme-cool .advice-text h4{color:#3182ce}
+.theme-cool .value-badge{background:#ebf8ff !important;color:#3182ce !important}
+.theme-cool input[type=range]::-webkit-slider-thumb{border-color:#3182ce !important}
+.theme-disabled .status-card{background:#f8fafc;border-color:#e2e8f0}
+.theme-disabled .advice-text h4{color:#64748b}
+.theme-disabled .value-badge{background:#e2e8f0 !important;color:#64748b !important}
+@media (min-width:768px){.main-layout{flex-direction:row}.tabs-container{flex-direction:column;width:250px;box-shadow:2px 0 5px rgba(0,0,0,0.02)}.tab-btn{flex-direction:row;padding:20px;border-bottom:none;border-left:4px solid transparent}.tab-btn.active{border-left-color:var(--primary-color);background:#f0fff4}.content-area{padding:40px;display:flex;justify-content:center}.form-container{width:100%;max-width:600px;margin-bottom:0}.submit-container{position:relative;box-shadow:none;background:transparent;padding:0;margin-top:24px}}
+`}</style>
+
+          <header className="header"><span className="header-icon">⚙️</span>ตั้งค่าระบบ AFE PLUS</header>
+          <main className="main-layout">
+            <section className="content-area">
+              <div className={`form-container active ${getTheme()}`} style={{ display: 'block' }} id="temp" role="tabpanel">
+                <h3 className="form-section-title">ตั้งค่าอุณหภูมิร่างกาย</h3>
+
+                <div id="group-tempAlert">
+                  <div className="status-card">
+                    <div className="status-icon" id="temp-icon">{maxTemperature >= 38 ? '🚨' : maxTemperature >= 37.3 ? '🤒' : maxTemperature < 36 ? '🥶' : '🌡️'}</div>
+                    <div className="advice-text">
+                      <h4 id="temp-advice-title">{maxTemperature >= 38 ? 'เตือนเมื่อมีไข้ (≥ 38.0°C)' : maxTemperature >= 37.3 ? 'เตือนเมื่อเริ่มมีไข้ (37.3–37.9°C)' : maxTemperature < 36 ? 'ช่วงอุณหภูมิต่ำ (< 36.0°C)' : 'ช่วงอุณหภูมิปกติ (36.0–37.2°C)'}</h4>
+                      <p id="temp-advice-desc">{maxTemperature >= 38 ? 'เกณฑ์ผู้สูงอายุ: ถือเป็นช่วงไข้สูง ระบบจะแจ้งเตือนทันที ควรเตรียมยาลดไข้หรือติดต่อแพทย์' : maxTemperature >= 37.3 ? 'เกณฑ์ผู้สูงอายุ: ช่วงไข้ต่ำ ควรเฝ้าระวังอาการอย่างใกล้ชิดและให้ดื่มน้ำมากๆ' : maxTemperature < 36 ? 'เกณฑ์ผู้สูงอายุ: อาจเกิดจากอากาศเย็นหรือภาวะอุณหภูมิกายต่ำ ควรระวังร่างกายหนาวสั่น' : 'เกณฑ์ผู้สูงอายุ: ช่วงปกติ การตั้งเตือนระดับนี้อาจทำให้แจ้งเตือนบ่อยเกินไป'}</p>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      แจ้งเตือนเมื่ออุณหภูมิสูงกว่า
+                      <span className="value-badge" id="badge-tempAlert"><span id="val_tempAlert">{maxTemperature.toFixed(1)}</span> °C</span>
+                    </label>
+                    <div className="default-recommend-row">
+                      <span className="recommend-text">ค่าเริ่มต้นแนะนำ: <b>37.8 °C</b> (เกณฑ์เริ่มมีไข้ต่ำในผู้สูงอายุ)</span>
+                      <button type="button" className="btn-preset" onClick={() => updateValue(37.8)}>ใช้ค่าแนะนำ</button>
+                    </div>
+                    <div className="control-layout">
+                      <input type="range" id="tempAlert_slider" min={MIN} max={MAX} step={0.1} value={maxTemperature} onChange={(e) => updateValue(Number(e.target.value))} />
+                      <div className="stepper-wrapper">
+                        <button type="button" className="btn-step" onClick={() => stepValue(-0.1)} id="btn_tempAlert_minus">-</button>
+                        <input type="number" id="tempAlert_input" className="form-control-number" min={MIN} max={MAX} step={0.1} value={maxTemperature.toFixed(1)} onChange={(e) => updateValue(Number(e.target.value))} />
+                        <button type="button" className="btn-step" onClick={() => stepValue(0.1)} id="btn_tempAlert_plus">+</button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </Card.Body>
-            </Card>
-            <div className="mb-2" style={{ fontSize: 18, color: "#48526b", fontWeight: 500 }}>
-              กำหนดเกณฑ์สูงสุด:
-              <span style={{ color: "#ff6641", fontWeight: 700, marginLeft: 6 }}>{maxTemperature}°C</span>
-            </div>
-            <div className="my-3">
-              <RangeSlider
-                min={30}
-                max={45}
-                step={0.1}
-                value={maxTemperature}
-                onChange={(value) => setMaxTemperature(Number(value))}
-              />
-            </div>
-            <div className="mb-4" style={{ fontSize: 16, color: "#48526b", marginTop: 20 }}>
-              หากค่าอุณหภูมิเกินเกณฑ์ที่ตั้งไว้ ระบบจะแจ้งเตือนทันทีผ่าน LINE
-            </div>
-            <ButtonState
-              text="✔ บันทึกการตั้งค่า"
-              isLoading={isLoading}
-              onClick={handleSave}
-              className="w-100"
-            />
-            <ModalAlert show={alert.show} message={alert.message} handleClose={() => setAlert({ show: false, message: '' })} />
-          </div>
-        </Container>
+
+                <div className="submit-container">
+                  <button className="btn-submit" onClick={handleSave} disabled={isLoading}>{isLoading ? 'กำลังบันทึก...' : '✔ บันทึกการตั้งค่า'}</button>
+                </div>
+              </div>
+            </section>
+          </main>
+          <ModalAlert show={alert.show} message={alert.message} handleClose={() => setAlert({ show: false, message: '' })} />
+        </div>
       )}
     </>
   )
