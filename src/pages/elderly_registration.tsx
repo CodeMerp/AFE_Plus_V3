@@ -129,11 +129,11 @@ const ElderlyRegistration = () => {
             // เรียกใช้ตรงๆ แทนการพึ่ง function
             const fetchUserData = async () => {
                 try {
-                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
                     if(responseUser.data?.data){
                         const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
                         
-                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                         const takecareData = responseTakecareperson.data?.data;
                         
                         if(takecareData){
@@ -203,8 +203,8 @@ const ElderlyRegistration = () => {
 
     const getMasterData = async () => {
         try {
-            const response1 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getGender`);
-            const response2 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getMarry`);
+            const response1 = await axios.get(`/api/master/getGender`);
+            const response2 = await axios.get(`/api/master/getMarry`);
             if (response1.data) {
                 setMasterGender(response1.data.data)
             }
@@ -224,7 +224,7 @@ const ElderlyRegistration = () => {
 
     const onGetUserProfile = async (auToken: string) => {
         try {
-            const response = await axios.get(`${process.env.WEB_DOMAIN}/api/getProfile?id=${auToken}`);
+            const response = await axios.get(`/api/getProfile?id=${auToken}`);
             if (response.data) {
                 setDisplayName(response.data.data?.displayName)
             }
@@ -273,7 +273,7 @@ const ElderlyRegistration = () => {
                 takecare_drug    : formData.takecare_drug,
             }
 
-            await axios.post(`${process.env.WEB_DOMAIN}/api/registration/takecareperson`, data)
+            await axios.post(`/api/registration/takecareperson`, data)
             
             // ✅ ย้าย data reload ไปเรียกใน onConfirmSubmit แทน (เพื่อไม่ให้ขัดแย้งกับ alert)
 
@@ -299,10 +299,10 @@ const ElderlyRegistration = () => {
             // ✅ รอให้ reload data ทำงานเสร็จก่อน
             if (router.query.auToken && typeof router.query.auToken === 'string') {
                 try {
-                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${router.query.auToken}`);
+                    const responseUser = await axios.get(`/api/user/getUser/${router.query.auToken}`);
                     if(responseUser.data?.data){
                         const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                         setDataUser({ 
                             isLogin: false, 
                             data: responseTakecareperson.data?.data, 

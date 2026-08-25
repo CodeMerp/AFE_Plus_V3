@@ -82,7 +82,7 @@ const Cuserinfo = () => {
         if (auToken) {
             const fetchUserData = async () => {
                 try {
-                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
                     if (responseUser.data?.data) {
                         const userData = responseUser.data.data;
                         setDataUser({ isLogin: false, data: userData });
@@ -152,10 +152,10 @@ const Cuserinfo = () => {
             }
 
             const encodedUsersId = encrypt(dataUser.data.users_id.toString());
-            await axios.post(`${process.env.WEB_DOMAIN}/api/user/updateUser/${encodedUsersId}`, data)
+            await axios.post(`/api/user/updateUser/${encodedUsersId}`, data)
             
             if (router.query.auToken) {
-                const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${router.query.auToken}`);
+                const responseUser = await axios.get(`/api/user/getUser/${router.query.auToken}`);
                 if (responseUser.data?.data) {
                     setDataUser({ isLogin: false, data: responseUser.data.data });
                 }

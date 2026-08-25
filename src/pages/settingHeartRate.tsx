@@ -42,11 +42,11 @@ const SettingHeartRate = () => {
 
   const fetchUserData = async (auToken: string) => {
     try {
-      const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`)
+      const responseUser = await axios.get(`/api/user/getUser/${auToken}`)
       if (responseUser.data?.data) {
         const encodedUsersId = encrypt(responseUser.data.data.users_id.toString())
         const responseTakecare = await axios.get(
-          `${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`
+          `/api/user/getUserTakecareperson/${encodedUsersId}`
         )
         const takecareData = responseTakecare.data?.data
         if (takecareData) {
@@ -68,7 +68,7 @@ const SettingHeartRate = () => {
 
   const fetchHeartRateSetting = async (settingId: number) => {
     try {
-      const res = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getHeartRate?id=${settingId}`)
+      const res = await axios.get(`/api/setting/getHeartRate?id=${settingId}`)
       if (res.data?.data) {
         const data = res.data.data
         setMaxBpm(Number(data.max_bpm))
@@ -98,7 +98,7 @@ const SettingHeartRate = () => {
       if (idSetting) {
         payload.id = idSetting
       }
-      const res = await axios.post(`${process.env.WEB_DOMAIN}/api/setting/saveHeartRate`, payload)
+      const res = await axios.post(`/api/setting/saveHeartRate`, payload)
       if (res.data?.id) {
         setIdSetting(res.data.id)
         router.push(`/settingHeartRate?auToken=${router.query.auToken}&idsetting=${res.data.id}`)

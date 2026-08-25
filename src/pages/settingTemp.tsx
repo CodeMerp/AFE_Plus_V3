@@ -50,11 +50,11 @@ const TemperatureSetting = () => {
   // ฟังก์ชันดึงข้อมูลผู้ใช้และผู้ดูแล
   const fetchUserData = async (auToken: string) => {
     try {
-      const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`)
+      const responseUser = await axios.get(`/api/user/getUser/${auToken}`)
       if (responseUser.data?.data) {
         const encodedUsersId = encrypt(responseUser.data.data.users_id.toString())
         const responseTakecare = await axios.get(
-          `${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`
+          `/api/user/getUserTakecareperson/${encodedUsersId}`
         )
         const takecareData = responseTakecare.data?.data
         if (takecareData) {
@@ -77,7 +77,7 @@ const TemperatureSetting = () => {
   // ฟังก์ชันดึงข้อมูลการตั้งค่าอุณหภูมิ
   const fetchTemperatureSetting = async (settingId: number) => {
     try {
-      const res = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getTemperature?setting_id=${settingId}`)
+      const res = await axios.get(`/api/setting/getTemperature?setting_id=${settingId}`)
       if (res.data?.data) {
         const data = res.data.data
         setMaxTemperature(Number(data.max_temperature))
@@ -109,7 +109,7 @@ const TemperatureSetting = () => {
       if (idSetting) {
         payload.setting_id = idSetting
       }
-      const res = await axios.post(`${process.env.WEB_DOMAIN}/api/setting/saveTemperature`, payload)
+      const res = await axios.post(`/api/setting/saveTemperature`, payload)
       if (res.data?.id) {
         setIdSetting(res.data.id)
         router.push(`/settingTemp?auToken=${router.query.auToken}&idsetting=${res.data.id}`)

@@ -94,7 +94,7 @@ const Registration = () => {
             // เรียกใช้ตรงๆ แทนการพึ่ง function
             const fetchUserData = async () => {
                 try {
-                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
                     if (responseUser.data?.data) {
                         const userData = responseUser.data.data;
                         setDataUser({ isLogin: false, data: userData });
@@ -146,7 +146,7 @@ const Registration = () => {
 
     const onGetUserProfile = async (auToken: string) => {
         try {
-            const response = await axios.get(`${process.env.WEB_DOMAIN}/api/getProfile?id=${auToken}`);
+            const response = await axios.get(`/api/getProfile?id=${auToken}`);
             if (response.data) {
                 setDisplayName(response.data.data?.displayName)
             }
@@ -163,7 +163,7 @@ const Registration = () => {
 
     const onGetUserData = async (auToken: string) => {
         try {
-            const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
             if (responseUser.data?.data) {
                 const userData = responseUser.data.data;
                 setDataUser({ isLogin: false, data: userData });
@@ -240,7 +240,7 @@ const Registration = () => {
                 users_tel_home: formData.users_tel_home,
             }
 
-            await axios.post(`${process.env.WEB_DOMAIN}/api/registration/create`, data)
+            await axios.post(`/api/registration/create`, data)
             
             // ✅ ย้าย onGetUserData ไปเรียกใน onConfirmSubmit แทน (เพื่อไม่ให้ขัดแย้งกับ alert)
 

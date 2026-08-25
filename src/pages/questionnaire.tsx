@@ -22,7 +22,7 @@ const Questionnaire = () => {
 
     const fetchData = useCallback(async (id: string) => {
         try {
-            const response = await axios.get(`${process.env.WEB_DOMAIN}/api/borrowequipment/questionnaire?id=${id}`)
+            const response = await axios.get(`/api/borrowequipment/questionnaire?id=${id}`)
             if (response.data) {
                 setIsLoaded(false)
             }
