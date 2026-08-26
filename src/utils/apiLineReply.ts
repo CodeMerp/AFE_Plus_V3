@@ -827,8 +827,9 @@ export const replySetting = async ({
         let idsafezone = 0;
         let maxTemperature = 0;
         let idSetting = 0;
-        //let minBpm = 0;
-        let maxBpm = 0;
+        let minBpm = 55;
+        let minEnabled = true;
+        let maxBpm = 120;
         let idSettingHR = 0;
 
         if (safezoneData) {
@@ -842,42 +843,129 @@ export const replySetting = async ({
             idSetting = temperatureSettingData.setting_id || 0;
         }
         if (heartrateSettingData) {
-            // minBpm = heartrateSettingData.min_bpm || 50;
-            maxBpm = heartrateSettingData.max_bpm || 120;
+            minBpm = Number(heartrateSettingData.min_bpm ?? 55);
+            minEnabled = heartrateSettingData.min_enable ?? true;
+            maxBpm = Number(heartrateSettingData.max_bpm ?? 120);
             idSettingHR = heartrateSettingData.id || 0;
         }
 
         const requestData = {
-            replyToken,
-            messages: [
-                {
-                    type: 'flex',
-                    altText: 'ตั้งค่าความปลอดภัย',
-                    contents: {
-                        type: 'bubble',
-                        body: {
-                            type: 'box',
-                            layout: 'vertical',
-                            contents: [
-                                { type: 'text', text: 'ตั้งค่าความปลอดภัย', weight: 'bold', color: '#0000FF', size: 'xl' },
-                                { type: 'box', layout: 'horizontal', margin: 'lg', contents: [ { type: 'text', text: 'ชื่อ', size: 'sm', flex: 2 }, { type: 'text', text: `${userTakecarepersonData?.takecare_fname || '-'} ${userTakecarepersonData?.takecare_sname || '-'}`, size: 'sm', flex: 3 } ] },
-                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'เขตปลอดภัยที่ 1', size: 'sm', flex: 2 }, { type: 'text', text: `${r1} เมตร`, size: 'sm', flex: 3 } ] },
-                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'เขตปลอดภัยที่ 2', size: 'sm', flex: 2 }, { type: 'text', text: `${r2} เมตร`, size: 'sm', flex: 3 } ] },
-                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'อุณหภูมิ', size: 'sm', flex: 2 }, { type: 'text', text: `${maxTemperature} องศา`, size: 'sm', flex: 3 } ] },
-                                { type: 'box', layout: 'horizontal', contents: [ { type: 'text', text: 'ชีพจร', size: 'sm', flex: 2 }, { type: 'text', text: `${maxBpm} ครั้งต่อนาที`, size: 'sm', flex: 3 } ] }
-                            ],
+    replyToken,
+    messages: [
+        {
+            type: 'flex',
+            altText: 'ตั้งค่าความปลอดภัย',
+            contents: {
+                type: 'bubble',
+                body: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                        { 
+                            type: 'text', 
+                            text: 'ตั้งค่าความปลอดภัย', 
+                            weight: 'bold', 
+                            color: '#00B900', 
+                            size: 'xl' 
                         },
-                        footer: {
-                            type: 'box', layout: 'vertical', spacing: 'sm', contents: [
-                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าเขตปลอดภัย', uri: `${WEB_API}/setting?auToken=${userData.users_line_id}&idsafezone=${idsafezone}` } },
-                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าอุณหภูมิร่างกาย', uri: `${WEB_API}/settingTemp?auToken=${userData.users_line_id}&idsetting=${idSetting || ''}` } },
-                                { type: 'button', style: 'primary', color: '#00C300', action: { type: 'uri', label: 'ตั้งค่าชีพจร', uri: `${WEB_API}/settingHeartRate?auToken=${userData.users_line_id}&idsetting=${idSettingHR || ''}` } }
-                            ]
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            margin: 'lg', 
+                            contents: [ 
+                                { type: 'text', text: 'ชื่อ', size: 'sm', flex: 2, color: '#666666' }, 
+                                { type: 'text', text: `${userTakecarepersonData?.takecare_fname || '-'} ${userTakecarepersonData?.takecare_sname || '-'}`, size: 'sm', flex: 3, weight: 'bold' } 
+                            ] 
+                        },
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            contents: [ 
+                                { type: 'text', text: 'เขตปลอดภัยที่ 1', size: 'sm', flex: 2, color: '#666666' }, 
+                                { type: 'text', text: `${r1} เมตร`, size: 'sm', flex: 3 } 
+                            ] 
+                        },
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            contents: [ 
+                                { type: 'text', text: 'เขตปลอดภัยที่ 2', size: 'sm', flex: 2, color: '#666666' }, 
+                                { type: 'text', text: `${r2} เมตร`, size: 'sm', flex: 3 } 
+                            ] 
+                        },
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            contents: [ 
+                                { type: 'text', text: 'อุณหภูมิ', size: 'sm', flex: 2, color: '#666666' }, 
+                                { type: 'text', text: `${maxTemperature} °C`, size: 'sm', flex: 3 } 
+                            ] 
+                        },
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            contents: [ 
+                                { type: 'text', text: 'ชีพจร (สูงสุด)', size: 'sm', flex: 2, color: '#666666' }, 
+                                { type: 'text', text: `${maxBpm} bpm`, size: 'sm', flex: 3 } 
+                            ] 
+                        },
+                        { 
+                            type: 'box', 
+                            layout: 'horizontal', 
+                            contents: [ 
+                                { type: 'text', text: 'ชีพจร (ต่ำสุด)', size: 'sm', flex: 2, color: '#666666' }, 
+                                { 
+                                    type: 'text', 
+                                    text: minEnabled !== false && minBpm ? `${minBpm} bpm` : 'ปิดใช้งาน', 
+                                    size: 'sm', 
+                                    flex: 3,
+                                    color: minEnabled !== false && minBpm ? '#111111' : '#999999'
+                                } 
+                            ] 
                         }
-                    }
+                    ],
+                },
+                footer: {
+                    type: 'box', 
+                    layout: 'vertical', 
+                    spacing: 'sm', 
+                    contents: [
+                        { 
+                            type: 'button', 
+                            style: 'primary', 
+                            color: '#00B900', 
+                            action: { 
+                                type: 'uri', 
+                                label: 'ตั้งค่าเขตปลอดภัย', 
+                                uri: `${WEB_API}/setting?auToken=${userData.users_line_id}&idsafezone=${idsafezone}` 
+                            } 
+                        },
+                        { 
+                            type: 'button', 
+                            style: 'primary', 
+                            color: '#00B900', 
+                            action: { 
+                                type: 'uri', 
+                                label: 'ตั้งค่าอุณหภูมิร่างกาย', 
+                                uri: `${WEB_API}/settingTemp?auToken=${userData.users_line_id}&idsetting=${idSetting || ''}` 
+                            } 
+                        },
+                        { 
+                            type: 'button', 
+                            style: 'primary', 
+                            color: '#00B900', 
+                            action: { 
+                                type: 'uri', 
+                                label: 'ตั้งค่าชีพจร', 
+                                uri: `${WEB_API}/settingHeartRate?auToken=${userData.users_line_id}&idsetting=${idSettingHR || ''}` 
+                            } 
+                        }
+                    ]
                 }
-            ]
-        };
+            }
+        }
+    ]
+};
 
         await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
 
