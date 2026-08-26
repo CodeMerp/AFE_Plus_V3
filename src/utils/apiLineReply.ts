@@ -865,7 +865,7 @@ export const replySetting = async ({
                             type: 'text', 
                             text: 'ตั้งค่าความปลอดภัย', 
                             weight: 'bold', 
-                            color: '#00B900', 
+                            color: '#0000FF', 
                             size: 'xl' 
                         },
                         { 
