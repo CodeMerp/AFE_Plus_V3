@@ -153,7 +153,7 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
               } else {
                 await replyNotRegistration({ replyToken, userId });
               }
-            } else if (events.message.text === "ตั้งค่าเขตปลอดภัย") {
+            } else if (events.message.text === "ตั้งค่าเขตปลอดภัย" || events.message.text === "ตั้งค่าความปลอดภัย") {
               const responseUser = await api.getUser(userId);
               console.log("User Data: ", responseUser);  // เช็คข้อมูลผู้ใช้
               if (responseUser) {
