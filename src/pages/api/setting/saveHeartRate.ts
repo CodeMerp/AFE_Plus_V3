@@ -23,15 +23,16 @@ export default withRlsAuth(
                     return res.status(400).json({ message: 'error', data: 'พารามิเตอร์ id ไม่ใช่ตัวเลข' })
                 }
 
-                // กำหนด default min_bpm ทุกที่ (กรณี schema ยัง require)
-                const min_bpm_default = 0
+                const minBpm = Number.isFinite(Number(body.min_bpm)) ? Number(body.min_bpm) : 55;
+                const minEnabled = body.min_enable !== undefined ? Boolean(body.min_enable) : true;
 
                 if (body.id) {
                     await prisma.heartrate_settings.update({
                         where: { id: Number(body.id) },
                         data: {
                             max_bpm: Number(body.max_bpm),
-                            min_bpm: min_bpm_default // ส่ง default เท่านั้น
+                            min_bpm: minBpm,
+                            min_enable: minEnabled,
                         },
                     });
                     return res.status(200).json({ message: 'success' });
@@ -49,7 +50,8 @@ export default withRlsAuth(
                         where: { id: existing.id },
                         data: {
                             max_bpm: Number(body.max_bpm),
-                            min_bpm: min_bpm_default // ส่ง default เท่านั้น
+                            min_bpm: minBpm,
+                            min_enable: minEnabled,
                         },
                     });
                     return res.status(200).json({ message: 'success', id: existing.id });
@@ -59,7 +61,8 @@ export default withRlsAuth(
                             takecare_id: Number(body.takecare_id),
                             users_id: Number(body.users_id),
                             max_bpm: Number(body.max_bpm),
-                            min_bpm: min_bpm_default // ส่ง default เท่านั้น
+                            min_bpm: minBpm,
+                            min_enable: minEnabled,
                         }
                     });
                     return res.status(200).json({ message: 'success', id: createdHeartRate.id });

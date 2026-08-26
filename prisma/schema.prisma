@@ -243,6 +243,7 @@ model heartrate_settings {
   takecare_id    Int
   max_bpm        Int
   min_bpm        Int
+  min_enable     Boolean        @default(true)
   takecareperson takecareperson @relation(fields: [takecare_id], references: [takecare_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_takecareperson_hrset")
   users          users          @relation(fields: [users_id], references: [users_id], onDelete: NoAction, onUpdate: NoAction, map: "fk_users_hrset")
 }
