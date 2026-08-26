@@ -69,12 +69,12 @@ const Borrow = () => {
         try {
             const auToken = router.query.auToken;
             if (auToken) {
-                const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
                 if (responseUser.data?.data) {
                     setUser(responseUser.data.data);
                     const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
                     // ดึงข้อมูลผูู้มีภาวะพพึ่งพิงจากผู้ดูแล
-                    const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                    const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                     const data = responseTakecareperson.data?.data;
                     if (data) {
                         setCarePerson(data);  // เก็บข้อมูลผู้มีภาวะพึ่งพิงที่ดูแล
@@ -114,7 +114,7 @@ const Borrow = () => {
                 borrow_list: listItem.map(item => ({ equipment_id: item.equipment_id }))
             };
 
-            await axios.post(`${process.env.WEB_DOMAIN}/api/borrowequipment/create`, data);
+            await axios.post(`/api/borrowequipment/create`, data);
             setAlert({ show: true, message: 'บันทึกข้อมูลสำเร็จ' });
         } catch (error) {
             setAlert({ show: true, message: 'ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง' });

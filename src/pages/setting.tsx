@@ -82,7 +82,7 @@ const Setting = () => {
 
     const onGetSafezone = async (idSafezone: string, takecareData : any, userData: any) => {
         try {
-            const resSafezone = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&id=${idSafezone}`);
+            const resSafezone = await axios.get(`/api/setting/getSafezone?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&id=${idSafezone}`);
             if(resSafezone.data?.data){
                 const data = resSafezone.data?.data
                 setLocation({
@@ -102,11 +102,11 @@ const Setting = () => {
 
     const onGetUserData = async (auToken: string) => {
         try {
-            const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+            const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
             if(responseUser.data?.data){
                 const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
                 
-                const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                 const data = responseTakecareperson.data?.data
                 if(data){
                     setDataUser({ isLogin: false, userData: responseUser.data?.data, takecareData: data })
@@ -154,7 +154,7 @@ const Setting = () => {
                     if(idSafezoneStage > 0){
                         data['safezone_id'] = idSafezoneStage
                     }
-                   const res = await axios.post(`${process.env.WEB_DOMAIN}/api/setting/saveSafezone`, data);
+                   const res = await axios.post(`/api/setting/saveSafezone`, data);
                    if(res.data?.id){
                        router.push(`/setting?auToken=${router.query.auToken}&idsafezone=${res.data.id}`)
                    }

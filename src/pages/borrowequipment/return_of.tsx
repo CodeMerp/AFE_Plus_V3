@@ -34,7 +34,7 @@ const ReturnOf = () => {
     try {
       const auToken = router.query.auToken;
       if (auToken) {
-        const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+        const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
         if (responseUser.data?.data) {
           setUser(responseUser.data.data);
         } else {
@@ -51,7 +51,7 @@ const ReturnOf = () => {
   const fetchBorrowedItems = async (userId: number) => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.WEB_DOMAIN}/api/borrowequipment/list?userId=${userId}`);
+      const response = await axios.get(`/api/borrowequipment/list?userId=${userId}`);
       if (response.data?.data) {
         const borrowedData: BorrowedItemType[] = response.data.data.flatMap((item: any) =>
           item.borrowequipment_list.map((eq: any) => ({
@@ -101,7 +101,7 @@ const ReturnOf = () => {
 
     try {
       setLoading(true);
-      await axios.post(`${process.env.WEB_DOMAIN}/api/borrowequipment/return`, {
+      await axios.post(`/api/borrowequipment/return`, {
         returnList,
       });
       setAlert({ show: true, message: 'คืนอุปกรณ์สำเร็จแล้ว' });

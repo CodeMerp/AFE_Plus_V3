@@ -170,7 +170,7 @@ const Location = () => {
 
     const onGetLocation = async (safezoneData: any, takecareData: any, userData: any) => {
         try {
-            const resLocation = await axios.get(`${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&safezone_id=${safezoneData.safezone_id}&location_id=${router.query.idlocation}`);
+            const resLocation = await axios.get(`/api/location/getLocation?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&safezone_id=${safezoneData.safezone_id}&location_id=${router.query.idlocation}`);
             if (resLocation.data?.data) {
                 const data = resLocation.data?.data;
                 setPatientPos({
@@ -193,7 +193,7 @@ const Location = () => {
 
     const onGetSafezone = async (idSafezone: string, takecareData: any, userData: any) => {
         try {
-            const resSafezone = await axios.get(`${process.env.WEB_DOMAIN}/api/setting/getSafezone?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&id=${idSafezone}`);
+            const resSafezone = await axios.get(`/api/setting/getSafezone?takecare_id=${takecareData.takecare_id}&users_id=${userData.users_id}&id=${idSafezone}`);
             if (resSafezone.data?.data) {
                 const data = resSafezone.data?.data;
                 setSafezonePos({
@@ -220,10 +220,10 @@ const Location = () => {
 
     const onGetUserData = useCallback(async (auToken: string) => {
         try {
-            const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+            const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
             if (responseUser.data?.data) {
                 const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                 const data = responseTakecareperson.data?.data;
 
                 if (data) {
@@ -313,7 +313,7 @@ const Location = () => {
 
         const fetchLocation = async () => {
             try {
-                const url = `${process.env.WEB_DOMAIN}/api/location/getLocation?takecare_id=${dataUser.takecareData.takecare_id}&users_id=${dataUser.userData.users_id}`;
+                const url = `/api/location/getLocation?takecare_id=${dataUser.takecareData.takecare_id}&users_id=${dataUser.userData.users_id}`;
                 const resLocation = await axios.get(url);
 
                 if (resLocation.data?.data) {

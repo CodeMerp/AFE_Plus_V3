@@ -95,10 +95,10 @@ const Puserinfo = () => {
         if (auToken && typeof auToken === 'string') {
             const fetchUserData = async () => {
                 try {
-                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
                     if (responseUser.data?.data) {
                         const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                     
                         const takecareData = responseTakecareperson.data?.data;
                         
@@ -159,8 +159,8 @@ const Puserinfo = () => {
 
     const getMasterData = async () => {
         try {
-            const response1 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getGender`);
-            const response2 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getMarry`);
+            const response1 = await axios.get(`/api/master/getGender`);
+            const response2 = await axios.get(`/api/master/getMarry`);
             if (response1.data) {
                 setMasterGender(response1.data.data)
             }
@@ -200,13 +200,13 @@ const Puserinfo = () => {
             }
 
             const encodedUsersId = encrypt(dataUser.data.takecare_id.toString());
-            await axios.post(`${process.env.WEB_DOMAIN}/api/user/updateUserTakecare/${encodedUsersId}`, data)
+            await axios.post(`/api/user/updateUserTakecare/${encodedUsersId}`, data)
             
             if (router.query.auToken && typeof router.query.auToken === 'string') {
-                const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${router.query.auToken}`);
+                const responseUser = await axios.get(`/api/user/getUser/${router.query.auToken}`);
                 if (responseUser.data?.data) {
                     const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                    const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
+                    const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
                     setDataUser({ 
                         isLogin: false, 
                         data: responseTakecareperson.data?.data, 
