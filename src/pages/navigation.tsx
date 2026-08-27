@@ -31,6 +31,7 @@ import { createPresentationTransactionGateSnapshot } from "@/lib/presentation/tr
 import { decideProductionWiringAction } from "@/lib/presentation/presentationTransactionProductionPolicy";
 import { isFieldTestSwitchEnabled } from "@/lib/presentation/presentationTransactionControlledEnablement";
 import { hasRouteTrimGeometryBasisChanged, shouldApplyRouteTrimPaint } from "@/lib/presentation/routeTrimRebaseModel";
+import { clipRoutePathAtProjection, shouldCommitFreshProjection } from "@/lib/presentation/routeDisplayClipModel";
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 // PR2a-1C-B2: build capability for the FUTURE route/trim transaction. Build-time
 // value substitution only — Next.js replaces this with a literal at build time,
@@ -177,7 +178,6 @@ const PATIENT_MARKER_INTERP_ALPHA     = 0.2;
 const PATIENT_MARKER_MAX_JUMP_M       = 25;
 const MARKER_BEARING_VISUAL_DEAD_ZONE_DEG = 1.5; // skip lerp when visual-to-target gap is tiny (°)
 const MARKER_BEARING_SMOOTH_TIME_MS       = 300;  // time constant for visual marker bearing lerp (ms) — M1: aligned with camera (was 220)
-const ROUTE_LINE_LAYER_IDS = ["route-line-casing", "route-line"] as const;
 const SOFT_FOLLOW_DURATION_MS = 2500; // ramp duration from current camera state to full navigation_follow (ms)
 const NAV_ARRIVAL_NEAR_THRESHOLD_M = 50;
 const NAV_ARRIVAL_REACHED_THRESHOLD_M = 5;
@@ -808,6 +808,12 @@ function NavigationScreen() {
     const routeTailAnchorRef = useRef<RouteTailAnchor | null>(null);
     const [stableRouteSourcePath, setStableRouteSourcePath] = useState<LatLngPoint[]>([]);
     const stableRouteSourcePathRef = useRef<LatLngPoint[]>([]);
+    // [afe.web.route_flicker] Physically-clipped presentation geometry actually fed to the
+    // Mapbox route Source. Unlike stableRouteSourcePath (full authoritative path, kept for
+    // camera/marker fallback below), this never contains passed history — the passed frontier
+    // is excluded from the array itself, not hidden via a separate mutable paint property.
+    const [displayRouteSourcePath, setDisplayRouteSourcePath] = useState<LatLngPoint[]>([]);
+    const displayRouteSourcePathRef = useRef<LatLngPoint[]>([]);
     const lastRouteSourceSignatureRef = useRef<string>('empty');
     const lastRouteSourceBodySignatureRef = useRef<string>('empty');
     const lastRouteSourceRouteVersionRef = useRef<number>(routeVersion);
@@ -900,11 +906,13 @@ function NavigationScreen() {
         return rendered.length >= 2 ? rendered : geomPath;
     }, [displayAgentPosition, path, stableRouteSourcePath, routeVersion, routeTailAnchor, status]);
 
-    // Mapbox Source uses only stableRouteSourcePath.
-    // Agent-side visual progress is handled by marker/camera/routeTailAnchor and must not mutate Source data.
-    const activeRouteSourcePath = stableRouteSourcePath;
+    // [afe.web.route_flicker] Mapbox Source uses only displayRouteSourcePath — the physically
+    // clipped presentation geometry (see declaration above). stableRouteSourcePath (the full
+    // authoritative path) is intentionally NOT used here anymore; it remains available for
+    // camera/marker fallback elsewhere in this file, unchanged.
+    const activeRouteSourcePath = displayRouteSourcePath;
 
-    // แปลง stableRouteSourcePath เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
+    // แปลง displayRouteSourcePath เป็น GeoJSON — coordinates ต้องเป็น [lng, lat] (Mapbox convention)
     // Source data is locked against agent movement to avoid full LineString setData flicker.
     const routeGeoJSON: GeoJSON.LineString | null = useMemo(() => {
         if (activeRouteSourcePath.length < 2) return null;
@@ -928,6 +936,10 @@ function NavigationScreen() {
                 lastRouteSourceBodySignatureRef.current = 'empty';
                 lastRouteSourceRouteVersionRef.current = routeVersion;
                 setStableRouteSourcePath([]);
+                // [afe.web.route_flicker] clear the displayed/clipped geometry alongside the
+                // authoritative one so the Source does not keep showing a stale route.
+                displayRouteSourcePathRef.current = [];
+                setDisplayRouteSourcePath([]);
             }
             return;
         }
@@ -956,6 +968,17 @@ function NavigationScreen() {
             lastRouteSourceBodySignatureRef.current = nextBodySignature;
             lastRouteSourceRouteVersionRef.current = routeVersion;
             setStableRouteSourcePath(nextPath);
+            // [afe.web.route_flicker] Seed the displayed/clipped geometry only on a genuine
+            // identity change (first route, or Mapbox-refetch remount) or when nothing has
+            // been displayed yet. On an ordinary MT-D* incremental update (same identity),
+            // the previous generation's physically-clipped geometry keeps showing until the
+            // continuous rAF loop below (single write path) re-clips onto the new geometry —
+            // this avoids a second, independent writer racing the Source's `data` prop and
+            // reintroducing full/unclipped geometry for a frame.
+            if (sourceKeyChanged || displayRouteSourcePathRef.current.length < 2) {
+                displayRouteSourcePathRef.current = nextPath;
+                setDisplayRouteSourcePath(nextPath);
+            }
         };
 
         // ── PR2a-1C-B2: gate-OFF legacy wrapper (NO TRANSACTION BEHAVIOR) ─────
@@ -1264,31 +1287,45 @@ function NavigationScreen() {
         routeTailAnchorRef.current = routeTailAnchor;
     }, [routeTailAnchor]);
 
-    const setRouteTrimPaint = (progress: number): boolean => {
+    // [afe.web.route_flicker] Replaces the former paint-only `line-trim-offset` trim writer.
+    // Passed history is now excluded by physically slicing the route coordinates BEFORE they
+    // reach the Mapbox Source, instead of hiding it behind a separately-mutated paint property.
+    // `line-trim-offset` stays invariant at [0, 0] in the layer JSX and is never written here —
+    // there is exactly one write path for what the route Source displays.
+    const applyRouteDisplayGeometry = (clippedPath: LatLngPoint[]): boolean => {
         const mapRefValue = mapRef.current as unknown as {
             getMap?: () => unknown;
         } | null;
         const map = (mapRefValue?.getMap ? mapRefValue.getMap() : mapRefValue) as {
-            getLayer?: (id: string) => unknown;
-            setPaintProperty?: (id: string, name: string, value: unknown) => void;
+            getSource?: (id: string) => { setData?: (data: GeoJSON.FeatureCollection) => void } | undefined;
         } | null;
-        if (!map?.setPaintProperty || !map?.getLayer) return false;
+        const source = map?.getSource ? map.getSource("route") : undefined;
+        if (!source?.setData) return false;
 
-        const clampedProgress = Math.max(0, Math.min(0.995, progress));
-        let appliedCount = 0;
-
-        for (const layerId of ROUTE_LINE_LAYER_IDS) {
-            if (!map.getLayer(layerId)) continue;
-            try {
-                map.setPaintProperty(layerId, "line-trim-offset", [0, clampedProgress]);
-                appliedCount += 1;
-            } catch {
-                // A partial trim write must not be reported as synchronized.
+        const geojson: GeoJSON.FeatureCollection = clippedPath.length >= 2
+            ? {
+                type: "FeatureCollection",
+                features: [{
+                    type: "Feature",
+                    properties: {},
+                    geometry: {
+                        type: "LineString",
+                        coordinates: clippedPath.map((p) => [p.lng, p.lat] as [number, number]),
+                    },
+                }],
             }
+            : { type: "FeatureCollection", features: [] };
+
+        try {
+            source.setData(geojson);
+        } catch {
+            // A failed write must not be reported as committed, and must not update bookkeeping
+            // refs below — the previously-committed generation remains the displayed one.
+            return false;
         }
 
-        const applied = appliedCount === ROUTE_LINE_LAYER_IDS.length;
-        return applied;
+        displayRouteSourcePathRef.current = clippedPath;
+        return true;
     };
 
     const getInitialRouteTrimPosition = (): LatLngPoint | null => {
@@ -1346,9 +1383,16 @@ function NavigationScreen() {
         const distanceAlongRouteM = geometryBasisChanged
             ? trim.distanceAlongRouteM
             : Math.max(previousDistanceM, trim.distanceAlongRouteM);
-        const applied = setRouteTrimPaint(
-            progress,
-        );
+        // [afe.web.route_flicker] Only a fresh (non-clamped) projection has a valid
+        // segmentIndex/projectedPoint to physically clip against. If the fresh projection
+        // regressed and got clamped to the previous progress, the previously-committed
+        // display geometry is already correct — nothing to (re-)write this call.
+        const isFreshProjection = shouldCommitFreshProjection(trim.distanceAlongRouteM, previousDistanceM, geometryBasisChanged);
+        const applied = isFreshProjection
+            ? applyRouteDisplayGeometry(
+                clipRoutePathAtProjection(sourcePath, trim.projectedPoint, trim.segmentIndex),
+            )
+            : true;
         if (!applied) {
             return false;
         }
@@ -1374,7 +1418,8 @@ function NavigationScreen() {
         lastRouteTrimDistanceMRef.current = 0;
         hasSeededInitialRouteTrimRef.current = false;
         seededRouteTrimVersionRef.current = null;
-        setRouteTrimPaint(0);
+        applyRouteDisplayGeometry([]);
+        setDisplayRouteSourcePath([]);
         presentationShadowTrimBasisSignatureRef.current = null;
         softFollowStartAtRef.current = 0;
         softFollowInitialPitchRef.current = 0;
@@ -1928,10 +1973,14 @@ function NavigationScreen() {
                 }
             }
 
-            // ── Style-based route tail trim ────────────────────────────────────
-            // Hide the passed route by updating line paint only. This never mutates
-            // routeSourceData/stableRouteSourcePath, so agent movement cannot trigger
-            // GeoJSON setData or Source remount flicker.
+            // ── [afe.web.route_flicker] Route display geometry (physical clip) ──────
+            // Passed history is excluded by physically slicing stableRouteSourcePathRef
+            // (the full authoritative path) at the agent's projected position, then writing
+            // the result directly to the Mapbox route Source via applyRouteDisplayGeometry.
+            // This never touches stableRouteSourcePath/React state on the hot path, so agent
+            // movement cannot trigger a declarative re-render — but unlike the former
+            // paint-only trim, the passed segment is now actually absent from the geometry,
+            // not merely hidden behind a separately-mutated line-trim-offset.
             {
                 const sourcePath = stableRouteSourcePathRef.current;
                 const trimNow = Date.now();
@@ -1955,7 +2004,7 @@ function NavigationScreen() {
                     if (routeTrimProgressRef.current !== 0) {
                         routeTrimProgressRef.current = 0;
                         lastRouteTrimDistanceMRef.current = 0;
-                        setRouteTrimPaint(0);
+                        applyRouteDisplayGeometry([]);
                     }
                 } else {
                     const trim = computeRouteTrimProgress(
@@ -2003,9 +2052,18 @@ function NavigationScreen() {
                         });
 
                         if (shouldApplyTrim) {
-                            const applied = setRouteTrimPaint(
-                                nextTrimProgress,
-                            );
+                            // [afe.web.route_flicker] Only trim.segmentIndex/projectedPoint (this
+                            // frame's fresh projection) is valid to physically clip against. When
+                            // the fresh projection regressed and nextTrimDistanceM was clamped back
+                            // to the previous value instead, the already-committed display geometry
+                            // is still correct — treat as a successful no-op rather than clipping
+                            // against a stale/foreign position.
+                            const isFreshApplied = shouldCommitFreshProjection(trim.distanceAlongRouteM, previousDistanceM, geometryBasisChanged);
+                            const applied = isFreshApplied
+                                ? applyRouteDisplayGeometry(
+                                    clipRoutePathAtProjection(sourcePath, trim.projectedPoint, trim.segmentIndex),
+                                )
+                                : true;
                             if (applied) {
                                 routeTrimProgressRef.current = nextTrimProgress;
                                 // Geometry basis this trim used.
@@ -3497,6 +3555,10 @@ function NavigationScreen() {
                     </Marker>
 
                     {/* 💡 วาดเส้นทาง Mapbox — key เปลี่ยนเฉพาะ first route + Mapbox refetch (ไม่ remount บน MT-D* incremental) */}
+                    {/* [afe.web.route_flicker] `data` here only ever carries the same physically-clipped
+                        geometry that applyRouteDisplayGeometry already wrote imperatively — it seeds the
+                        declarative Source on (re)mount, and steady-state MT-D* updates flow through the
+                        imperative path only, so this prop and the imperative writer never race each other. */}
                     <Source
                         key={`route-${routeSourceKey}`}
                         id="route"
@@ -3517,7 +3579,7 @@ function NavigationScreen() {
                                     22, 22
                                 ],
                                 "line-opacity": 1.0,
-                                "line-trim-offset": [0, 0],
+                                "line-trim-offset": [0, 0], // [afe.web.route_flicker] invariant — never written imperatively
                                 "line-trim-color": "rgba(0, 0, 0, 0)",
                                 "line-trim-fade-range": [0, 0],
                             }}
@@ -3539,7 +3601,7 @@ function NavigationScreen() {
                                     22, 14
                                 ],
                                 "line-opacity": 1.0,
-                                "line-trim-offset": [0, 0],
+                                "line-trim-offset": [0, 0], // [afe.web.route_flicker] invariant — never written imperatively
                                 "line-trim-color": "rgba(0, 0, 0, 0)",
                                 "line-trim-fade-range": [0, 0],
                             }}
