@@ -3,7 +3,7 @@ import * as api from "@/lib/listAPI";
 import axios from "axios";
 import prisma from "@/lib/prisma";
 
-import { replyNotification, replyNoti } from "@/utils/apiLineGroup";
+import { replyNoti, replyNotification } from "@/utils/apiLineGroup";
 
 interface PostbackSafezoneProps {
     userLineId: string;
@@ -357,14 +357,15 @@ export const postbackSafezone = async ({
                     resSafezone.safezone_id
                 );
 
-                await replyNotification({
+                // ไม่ส่งข้อความที่นี่อีกต่อไป — ส่งข้อมูลกลับให้ผู้เรียกแล้วให้ผู้เรียกเป็นคนส่งไปยังกลุ่ม
+                return {
+                    status: 'ok',
                     resUser,
                     resTakecareperson,
                     resSafezone,
                     extendedHelpId,
                     locationData: responeLocation,
-                });
-                return resUser.users_line_id;
+                } as any;
             } else {
                 console.log(
                     `NO SAFEZONE FOUND for takecare_id: ${resTakecareperson.takecare_id}, users_id: ${resUser.users_id}`

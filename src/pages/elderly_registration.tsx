@@ -611,6 +611,63 @@ const ElderlyRegistration = () => {
 
                         {status.loading ? (
                             <div className="loading-address">กำลังโหลดข้อมูลจังหวัด...</div>
+                        ) : status.error ? (
+                            // Fallback: allow manual entry when province data failed to load
+                            <>
+                                <div className="form-grid">
+                                    <InputLabel
+                                        label="จังหวัด (กรอกด้วยมือ)"
+                                        id="takecare_province"
+                                        placeholder="กรอกจังหวัด"
+                                        disabled={!!dataUser.data || sameAddress}
+                                        {...register("takecare_province")}
+                                        isInvalid={!!errors.takecare_province}
+                                        errorMessage={errors.takecare_province?.message}
+                                        isValid={isFieldValid("takecare_province")}
+                                        required
+                                    />
+
+                                    <InputLabel
+                                        label="อำเภอ (กรอกด้วยมือ)"
+                                        id="takecare_amphur"
+                                        placeholder="กรอกอำเภอ"
+                                        disabled={!!dataUser.data || sameAddress}
+                                        {...register("takecare_amphur")}
+                                        isInvalid={!!errors.takecare_amphur}
+                                        errorMessage={errors.takecare_amphur?.message}
+                                        isValid={isFieldValid("takecare_amphur")}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-grid">
+                                    <InputLabel
+                                        label="ตำบล (กรอกด้วยมือ)"
+                                        id="takecare_tubon"
+                                        placeholder="กรอกตำบล"
+                                        disabled={!!dataUser.data || sameAddress}
+                                        {...register("takecare_tubon")}
+                                        isInvalid={!!errors.takecare_tubon}
+                                        errorMessage={errors.takecare_tubon?.message}
+                                        isValid={isFieldValid("takecare_tubon")}
+                                        required
+                                    />
+
+                                    <InputLabel 
+                                        label="รหัสไปรษณีย์" 
+                                        id="takecare_postcode" 
+                                        placeholder="กรอกหรือปล่อยว่าง" 
+                                        type="tel"
+                                        max={5}
+                                        disabled={!!dataUser.data || sameAddress}
+                                        {...register("takecare_postcode")}
+                                        isInvalid={!!errors.takecare_postcode}
+                                        isValid={isFieldValid("takecare_postcode")}
+                                        readOnly={false}
+                                        required
+                                    />
+                                </div>
+                            </>
                         ) : (
                             <>
                                 <input type="hidden" {...register("takecare_province")} />
@@ -624,7 +681,7 @@ const ElderlyRegistration = () => {
                                         value={selected.provinceId}
                                         options={data.provinces}
                                         onChange={actions.setProvince}
-                                        disabled={!!dataUser.data || status.loading || !status.error || sameAddress}
+                                        disabled={!!dataUser.data || status.loading || sameAddress}
                                         placeholder="เลือกจังหวัด"
                                         isInvalid={!!errors.takecare_province}
                                         errorMessage={errors.takecare_province?.message}
@@ -639,7 +696,7 @@ const ElderlyRegistration = () => {
                                         value={selected.districtId}
                                         options={data.districts}
                                         onChange={actions.setDistrict}
-                                        disabled={!!dataUser.data || !selected.provinceId || sameAddress}
+                                        disabled={!!dataUser.data || !selected.provinceId || status.loading || sameAddress}
                                         placeholder={!selected.provinceId ? "เลือกจังหวัดก่อน" : "เลือกอำเภอ"}
                                         isInvalid={!!errors.takecare_amphur}
                                         errorMessage={errors.takecare_amphur?.message}
@@ -656,7 +713,7 @@ const ElderlyRegistration = () => {
                                         value={selected.subDistrictId}
                                         options={data.subDistricts}
                                         onChange={actions.setSubDistrict}
-                                        disabled={!!dataUser.data || !selected.districtId || sameAddress}
+                                        disabled={!!dataUser.data || !selected.districtId || status.loading || sameAddress}
                                         placeholder={!selected.districtId ? "เลือกอำเภอก่อน" : "เลือกตำบล"}
                                         isInvalid={!!errors.takecare_tubon}
                                         errorMessage={errors.takecare_tubon?.message}
@@ -671,7 +728,7 @@ const ElderlyRegistration = () => {
                                         placeholder="รหัสไปรษณีย์จะถูกกรอกอัตโนมัติ" 
                                         type="tel"
                                         max={5}
-                                        disabled={!!dataUser.data}
+                                        disabled={!!dataUser.data || sameAddress}
                                         {...register("takecare_postcode")}
                                         isInvalid={!!errors.takecare_postcode}
                                         isValid={isFieldValid("takecare_postcode")}

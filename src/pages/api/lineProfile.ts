@@ -15,6 +15,7 @@ import {
     replyUserInfo,
     replyNotification,
 } from "@/utils/apiLineReply";
+import { replyNotification as replyNotificationToGroup } from '@/utils/apiLineGroup';
 import { encrypt, parseQueryString } from "@/utils/helpers";
 import {
     postbackSafezone,
@@ -485,25 +486,33 @@ export default async function handle(
 
                     if (postback.type === "safezone") {
                         console.log("Handling safezone postback data.");
-                        const userPushId = await postbackSafezone({
+                        const result: any = await postbackSafezone({
                             userLineId: postback.userLineId,
                             takecarepersonId: Number(postback.takecarepersonId),
                         });
-                        if (userPushId) {
-                            console.log(
-                                "Safezone request sent, replying with notification."
-                            );
-                            await replyNotification({
-                                replyToken: userPushId,
-                                message: "ส่งคำขอความช่วยเหลือแล้ว",
-                            });
+                        console.log('postbackSafezone result:', result);
+
+                        if (result === 'already_sent') {
+                            await replyMessage({ replyToken, message: 'มีคำขอความช่วยเหลือที่ยังไม่ปิดอยู่แล้ว' });
+                        } else if (result === 'in_safezone') {
+                            await replyMessage({ replyToken, message: 'อยู่ในเขตปลอดภัยไม่สามารถส่งคำขอได้' });
+                        } else if (result && result.status === 'ok') {
+                            try {
+                                await replyNotificationToGroup({
+                                    resUser: result.resUser,
+                                    resTakecareperson: result.resTakecareperson,
+                                    resSafezone: result.resSafezone,
+                                    extendedHelpId: result.extendedHelpId,
+                                    locationData: result.locationData,
+                                });
+                                await replyMessage({ replyToken, message: 'ส่งคำขอความช่วยเหลือแล้ว' });
+                            } catch (err) {
+                                console.error('Failed to notify group:', err);
+                                await replyMessage({ replyToken, message: 'ไม่สามารถส่งคำขอได้ กรุณาตรวจสอบการตั้งค่า Safezone หรือข้อมูลผู้ดูแล' });
+                            }
                         } else {
-                            console.log("Failed to process safezone postback.");
-                            await replyMessage({
-                                replyToken,
-                                message:
-                                    "ไม่สามารถส่งคำขอได้ กรุณาตรวจสอบการตั้งค่า Safezone หรือข้อมูลผู้ดูแล",
-                            });
+                            console.log('Failed to process safezone postback.');
+                            await replyMessage({ replyToken, message: 'ไม่สามารถส่งคำขอได้ กรุณาตรวจสอบการตั้งค่า Safezone หรือข้อมูลผู้ดูแล' });
                         }
                     } else if (postback.type === "temperature") {
                         console.log("Handling temperature postback data.");
