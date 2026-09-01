@@ -828,7 +828,7 @@ export const replySetting = async ({
         let maxTemperature = 0;
         let idSetting = 0;
         let minBpm = 55;
-        let minEnabled = true;
+        let minEnabled = false;
         let maxBpm = 120;
         let idSettingHR = 0;
 

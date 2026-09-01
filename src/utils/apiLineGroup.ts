@@ -224,11 +224,11 @@ export const replyNotification = async ({
                                         style: 'primary',
                                         height: 'sm',
                                         margin: 'xxl',
-                                        color: '#007AFF',
+                                        color: '#888888',
                                         action: {
                                             type: 'uri',
-                                            label: 'ดูแผนที่/นำทาง',
-                                            uri: `${process.env.WEB_DOMAIN}/location?idlocation=${extendedHelpId}&idsafezone=${resSafezone?.safezone_id || ''}&auToken=${resUser.users_line_id}`
+                                            label: 'ดูแผนที่จากระบบ',
+                                            uri: `${WEB_API}/location?auToken=${resUser.users_line_id}&idsafezone=${resSafezone?.safezone_id || ''}&idlocation=${extendedHelpId || ''}`
                                         }
                                     },
                                     {
