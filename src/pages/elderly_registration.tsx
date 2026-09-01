@@ -263,7 +263,7 @@ const ElderlyRegistration = () => {
             const encodedUsersId = encrypt(dataUser.users_id.toString());
             const response = await axios.get(`/api/user/getUserCaregiver/${encodedUsersId}`);
             const caregiver = response.data?.data;
-            if (caregiver) {
+                if (caregiver) {
                 setValue('takecare_number', caregiver.takecare_number || '', { shouldValidate: true });
                 setValue('takecare_moo', caregiver.takecare_moo || '', { shouldValidate: true });
                 setValue('takecare_road', caregiver.takecare_road || '', { shouldValidate: true });
@@ -271,18 +271,21 @@ const ElderlyRegistration = () => {
                 setValue('takecare_amphur', caregiver.takecare_amphur || '', { shouldValidate: true });
                 setValue('takecare_tubon', caregiver.takecare_tubon || '', { shouldValidate: true });
                 setValue('takecare_postcode', caregiver.takecare_postcode || '', { shouldValidate: true });
-
-                actions.setInitialValues(
-                    caregiver.takecare_province || '',
-                    caregiver.takecare_amphur || '',
-                    caregiver.takecare_tubon || '',
-                    caregiver.takecare_postcode || ''
-                );
+                // Only attempt to map names -> ids if province data is loaded
+                if (data.provinces && data.provinces.length > 0) {
+                    actions.setInitialValues(
+                        caregiver.takecare_province || '',
+                        caregiver.takecare_amphur || '',
+                        caregiver.takecare_tubon || '',
+                        caregiver.takecare_postcode || ''
+                    );
+                }
             } else {
                 setAlert({ show: true, message: 'ไม่พบข้อมูลที่อยู่ของผู้ดูแล', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
                 setSameAddress(false);
             }
         } catch (error) {
+            console.error('Error fetching caregiver address:', error);
             setAlert({ show: true, message: 'เกิดข้อผิดพลาดขณะดึงข้อมูลที่อยู่', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
             setSameAddress(false);
         } finally {

@@ -11,7 +11,7 @@ class MyDocument extends Document {
     return (
       <Html className="h-full">
         <Head>
-        <link rel="icon" href="C:\SepawProject\SepawGit2\SEPAW-main\my-app\src\app\demoassist.ico" />
+          <link rel="icon" href="/favicon.ico" />
         </Head>
         <body className="">
           <Main />

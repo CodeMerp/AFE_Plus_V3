@@ -2,7 +2,10 @@ import axios from "axios";
 import { encrypt, parseQueryString } from '@/utils/helpers'
 
 const urlName = (url: string) => {
-    return `${process.env.WEB_DOMAIN}${url}`
+    const backend = process.env.WEB_DOMAIN;
+    if (backend && backend.length > 0) return `${backend}${url}`;
+    const port = process.env.PORT || '3060';
+    return `http://localhost:${port}${url}`;
 }
 
 export const getUser = async (userLineId: string) => {
