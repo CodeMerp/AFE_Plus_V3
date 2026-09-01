@@ -75,13 +75,14 @@ const ElderlyRegistration = () => {
     // 🔥 เรียกใช้ Thai Address Hook
     const { data, status, selected, actions, getNames, getLabel } = useThaiAddress();
 
-    // 🔥 ใช้ React Hook Form
+    // 🔥 ใช้ React Hook Form (เพิ่ม getValues)
     const { 
         register, 
         handleSubmit, 
         reset, 
         watch,
         setValue,
+        getValues,
         control,
         formState: { errors } 
     } = useForm<ElderlyRegistrationFormData>({
@@ -92,7 +93,7 @@ const ElderlyRegistration = () => {
         }
     });
 
-    // 🔥 Sync ค่าจาก dropdown ไปยัง form
+    // 🔥 Sync ค่าจาก dropdown ไปยัง form (แก้ไข Dependency Array แล้ว)
     useEffect(() => {
         if (selected.provinceId) {
             setValue('takecare_province', getNames.getProvinceName(selected.provinceId), { shouldValidate: true });
@@ -106,11 +107,12 @@ const ElderlyRegistration = () => {
         if (selected.zipCode) {
             setValue('takecare_postcode', selected.zipCode, { shouldValidate: true });
         }
-    }, [selected, setValue, getNames]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selected.provinceId, selected.districtId, selected.subDistrictId, selected.zipCode, setValue]);
 
-    // 🔥 ฟังก์ชันเช็คว่าควรขึ้น "สีเขียว" หรือไม่
+    // 🔥 ฟังก์ชันเช็คว่าควรขึ้น "สีเขียว" หรือไม่ (เปลี่ยนจาก watch เป็น getValues เพื่อลดภาระการ Re-render)
     const isFieldValid = (name: keyof ElderlyRegistrationFormData) => {
-        const value = watch(name);
+        const value = getValues(name);
         if (name === 'takecare_birthday' || name === 'gender_id' || name === 'marry_id') {
             return !errors[name] && !!value;
         }
