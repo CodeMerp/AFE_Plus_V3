@@ -1,4 +1,3 @@
-'use client'
 import React, { useEffect, useState } from 'react'
 import { GetServerSideProps } from 'next';
 import Image from 'next/image';
@@ -32,7 +31,7 @@ import axios from 'axios';
 
 interface UserTakecareData {
     isLogin: boolean;
-    data: {
+    data:{
         users_id         ?: number;
         takecare_fname   ?: string;
         takecare_sname   ?: string;
@@ -72,8 +71,6 @@ const ElderlyRegistration = () => {
     const [confirmShow, setConfirmShow] = useState(false);
     const [pendingData, setPendingData] = useState<ElderlyRegistrationFormData | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [sameAddress, setSameAddress] = useState(false);
-    const [isLoadingCaregiverAddress, setIsLoadingCaregiverAddress] = useState(false);
 
     // 🔥 เรียกใช้ Thai Address Hook
     const { data, status, selected, actions, getNames, getLabel } = useThaiAddress();
@@ -129,14 +126,14 @@ const ElderlyRegistration = () => {
             
             const fetchUserData = async () => {
                 try {
-                    const responseUser = await axios.get(`/api/user/getUser/${auToken}`);
-                    if (responseUser.data?.data) {
+                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${auToken}`);
+                    if(responseUser.data?.data){
                         const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
                         
-                        const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
                         const takecareData = responseTakecareperson.data?.data;
                         
-                        if (takecareData) {
+                        if(takecareData){
                             reset({
                                 takecare_fname: takecareData.takecare_fname,
                                 takecare_sname: takecareData.takecare_sname,
@@ -162,7 +159,7 @@ const ElderlyRegistration = () => {
                             data: takecareData, 
                             users_id: responseUser.data?.data.users_id 
                         });
-                    } else {
+                    }else{
                         setDataUser({ isLogin: false, data: null, users_id: null })
                     }
                 } catch (error) {
@@ -201,8 +198,8 @@ const ElderlyRegistration = () => {
 
     const getMasterData = async () => {
         try {
-            const response1 = await axios.get(`/api/master/getGender`);
-            const response2 = await axios.get(`/api/master/getMarry`);
+            const response1 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getGender`);
+            const response2 = await axios.get(`${process.env.WEB_DOMAIN}/api/master/getMarry`);
             if (response1.data) {
                 setMasterGender(response1.data.data)
             }
@@ -222,7 +219,7 @@ const ElderlyRegistration = () => {
 
     const onGetUserProfile = async (auToken: string) => {
         try {
-            const response = await axios.get(`/api/getProfile?id=${auToken}`);
+            const response = await axios.get(`${process.env.WEB_DOMAIN}/api/getProfile?id=${auToken}`);
             if (response.data) {
                 setDisplayName(response.data.data?.displayName)
             }
@@ -237,64 +234,8 @@ const ElderlyRegistration = () => {
         }
     }
 
-    const handleUseCaregiverAddress = async (shouldUseSame: boolean) => {
-        setSameAddress(shouldUseSame);
-
-        if (!shouldUseSame) {
-            setValue('takecare_number', '', { shouldValidate: true });
-            setValue('takecare_moo', '', { shouldValidate: true });
-            setValue('takecare_road', '', { shouldValidate: true });
-            setValue('takecare_province', '', { shouldValidate: true });
-            setValue('takecare_amphur', '', { shouldValidate: true });
-            setValue('takecare_tubon', '', { shouldValidate: true });
-            setValue('takecare_postcode', '', { shouldValidate: true });
-            actions.reset();
-            return;
-        }
-
-        if (!dataUser.users_id) {
-            setAlert({ show: true, message: 'ไม่พบข้อมูลผู้ใช้', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
-            setSameAddress(false);
-            return;
-        }
-
-        setIsLoadingCaregiverAddress(true);
-        try {
-            const encodedUsersId = encrypt(dataUser.users_id.toString());
-            const response = await axios.get(`/api/user/getUserCaregiver/${encodedUsersId}`);
-            const caregiver = response.data?.data;
-                if (caregiver) {
-                setValue('takecare_number', caregiver.takecare_number || '', { shouldValidate: true });
-                setValue('takecare_moo', caregiver.takecare_moo || '', { shouldValidate: true });
-                setValue('takecare_road', caregiver.takecare_road || '', { shouldValidate: true });
-                setValue('takecare_province', caregiver.takecare_province || '', { shouldValidate: true });
-                setValue('takecare_amphur', caregiver.takecare_amphur || '', { shouldValidate: true });
-                setValue('takecare_tubon', caregiver.takecare_tubon || '', { shouldValidate: true });
-                setValue('takecare_postcode', caregiver.takecare_postcode || '', { shouldValidate: true });
-                // Only attempt to map names -> ids if province data is loaded
-                if (data.provinces && data.provinces.length > 0) {
-                    actions.setInitialValues(
-                        caregiver.takecare_province || '',
-                        caregiver.takecare_amphur || '',
-                        caregiver.takecare_tubon || '',
-                        caregiver.takecare_postcode || ''
-                    );
-                }
-            } else {
-                setAlert({ show: true, message: 'ไม่พบข้อมูลที่อยู่ของผู้ดูแล', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
-                setSameAddress(false);
-            }
-        } catch (error) {
-            console.error('Error fetching caregiver address:', error);
-            setAlert({ show: true, message: 'เกิดข้อผิดพลาดขณะดึงข้อมูลที่อยู่', showClose: true, autoCloseMs: undefined, messageClassName: undefined });
-            setSameAddress(false);
-        } finally {
-            setIsLoadingCaregiverAddress(false);
-        }
-    }
-
     const onSubmit = async (formData: ElderlyRegistrationFormData) => {
-        if (!dataUser.users_id) {
+        if(!dataUser.users_id){
             setAlert({ 
                 show: true, 
                 message: 'ไม่พบข้อมูลผู้ใช้',
@@ -326,7 +267,7 @@ const ElderlyRegistration = () => {
                 takecare_drug    : formData.takecare_drug,
             }
 
-            await axios.post(`/api/registration/takecareperson`, data)
+            await axios.post(`${process.env.WEB_DOMAIN}/api/registration/takecareperson`, data)
 
         } catch (error) {
             setAlert({ 
@@ -348,10 +289,10 @@ const ElderlyRegistration = () => {
             
             if (router.query.auToken && typeof router.query.auToken === 'string') {
                 try {
-                    const responseUser = await axios.get(`/api/user/getUser/${router.query.auToken}`);
-                    if (responseUser.data?.data) {
+                    const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${router.query.auToken}`);
+                    if(responseUser.data?.data){
                         const encodedUsersId = encrypt(responseUser.data?.data.users_id.toString());
-                        const responseTakecareperson = await axios.get(`/api/user/getUserTakecareperson/${encodedUsersId}`);
+                        const responseTakecareperson = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUserTakecareperson/${encodedUsersId}`);
                         setDataUser({ 
                             isLogin: false, 
                             data: responseTakecareperson.data?.data, 
@@ -561,21 +502,6 @@ const ElderlyRegistration = () => {
                                     <p>กรุณาระบุที่อยู่ปัจจุบันของผู้มีภาวะพึ่งพิง</p>
                                 </div>
                             </div>
-                            
-                            {/* Checkbox เลือกใช้ที่อยู่เดียวกับผู้ดูแล */}
-                            {!dataUser.data && (
-                                <div className="same-address-wrapper">
-                                    <Form.Check 
-                                        type="switch"
-                                        id="same-address-switch"
-                                        label={isLoadingCaregiverAddress ? "กำลังดึงข้อมูลที่อยู่..." : "ใช้ที่อยู่เดียวกับผู้ดูแล"}
-                                        checked={sameAddress}
-                                        disabled={isLoadingCaregiverAddress}
-                                        onChange={(e) => handleUseCaregiverAddress(e.target.checked)}
-                                        className="fw-medium text-success fs-6"
-                                    />
-                                </div>
-                            )}
                         </div>
 
                         <div className="form-grid">
@@ -584,7 +510,7 @@ const ElderlyRegistration = () => {
                                 id="takecare_number" 
                                 placeholder="เช่น 123/12" 
                                 max={10}
-                                disabled={!!dataUser.data || sameAddress}
+                                disabled={!!dataUser.data}
                                 {...register("takecare_number")}
                                 isValid={isFieldValid("takecare_number")}
                             />
@@ -594,7 +520,7 @@ const ElderlyRegistration = () => {
                                 id="takecare_moo" 
                                 placeholder="เช่น 1" 
                                 max={5}
-                                disabled={!!dataUser.data || sameAddress}
+                                disabled={!!dataUser.data}
                                 {...register("takecare_moo")}
                                 numericOnly
                                 isValid={isFieldValid("takecare_moo")}
@@ -606,7 +532,7 @@ const ElderlyRegistration = () => {
                                 label="ถนน" 
                                 id="takecare_road" 
                                 placeholder="กรอกชื่อถนน" 
-                                disabled={!!dataUser.data || sameAddress}
+                                disabled={!!dataUser.data}
                                 {...register("takecare_road")}
                                 isValid={isFieldValid("takecare_road")}
                             />
@@ -614,63 +540,6 @@ const ElderlyRegistration = () => {
 
                         {status.loading ? (
                             <div className="loading-address">กำลังโหลดข้อมูลจังหวัด...</div>
-                        ) : status.error ? (
-                            // Fallback: allow manual entry when province data failed to load
-                            <>
-                                <div className="form-grid">
-                                    <InputLabel
-                                        label="จังหวัด (กรอกด้วยมือ)"
-                                        id="takecare_province"
-                                        placeholder="กรอกจังหวัด"
-                                        disabled={!!dataUser.data || sameAddress}
-                                        {...register("takecare_province")}
-                                        isInvalid={!!errors.takecare_province}
-                                        errorMessage={errors.takecare_province?.message}
-                                        isValid={isFieldValid("takecare_province")}
-                                        required
-                                    />
-
-                                    <InputLabel
-                                        label="อำเภอ (กรอกด้วยมือ)"
-                                        id="takecare_amphur"
-                                        placeholder="กรอกอำเภอ"
-                                        disabled={!!dataUser.data || sameAddress}
-                                        {...register("takecare_amphur")}
-                                        isInvalid={!!errors.takecare_amphur}
-                                        errorMessage={errors.takecare_amphur?.message}
-                                        isValid={isFieldValid("takecare_amphur")}
-                                        required
-                                    />
-                                </div>
-
-                                <div className="form-grid">
-                                    <InputLabel
-                                        label="ตำบล (กรอกด้วยมือ)"
-                                        id="takecare_tubon"
-                                        placeholder="กรอกตำบล"
-                                        disabled={!!dataUser.data || sameAddress}
-                                        {...register("takecare_tubon")}
-                                        isInvalid={!!errors.takecare_tubon}
-                                        errorMessage={errors.takecare_tubon?.message}
-                                        isValid={isFieldValid("takecare_tubon")}
-                                        required
-                                    />
-
-                                    <InputLabel 
-                                        label="รหัสไปรษณีย์" 
-                                        id="takecare_postcode" 
-                                        placeholder="กรอกหรือปล่อยว่าง" 
-                                        type="tel"
-                                        max={5}
-                                        disabled={!!dataUser.data || sameAddress}
-                                        {...register("takecare_postcode")}
-                                        isInvalid={!!errors.takecare_postcode}
-                                        isValid={isFieldValid("takecare_postcode")}
-                                        readOnly={false}
-                                        required
-                                    />
-                                </div>
-                            </>
                         ) : (
                             <>
                                 <input type="hidden" {...register("takecare_province")} />
@@ -684,7 +553,7 @@ const ElderlyRegistration = () => {
                                         value={selected.provinceId}
                                         options={data.provinces}
                                         onChange={actions.setProvince}
-                                        disabled={!!dataUser.data || status.loading || sameAddress}
+                                        disabled={!!dataUser.data || status.loading || !!status.error}
                                         placeholder="เลือกจังหวัด"
                                         isInvalid={!!errors.takecare_province}
                                         errorMessage={errors.takecare_province?.message}
@@ -699,7 +568,7 @@ const ElderlyRegistration = () => {
                                         value={selected.districtId}
                                         options={data.districts}
                                         onChange={actions.setDistrict}
-                                        disabled={!!dataUser.data || !selected.provinceId || status.loading || sameAddress}
+                                        disabled={!!dataUser.data || !selected.provinceId || status.loading || !!status.error}
                                         placeholder={!selected.provinceId ? "เลือกจังหวัดก่อน" : "เลือกอำเภอ"}
                                         isInvalid={!!errors.takecare_amphur}
                                         errorMessage={errors.takecare_amphur?.message}
@@ -716,7 +585,7 @@ const ElderlyRegistration = () => {
                                         value={selected.subDistrictId}
                                         options={data.subDistricts}
                                         onChange={actions.setSubDistrict}
-                                        disabled={!!dataUser.data || !selected.districtId || status.loading || sameAddress}
+                                        disabled={!!dataUser.data || !selected.districtId || status.loading || !!status.error}
                                         placeholder={!selected.districtId ? "เลือกอำเภอก่อน" : "เลือกตำบล"}
                                         isInvalid={!!errors.takecare_tubon}
                                         errorMessage={errors.takecare_tubon?.message}
@@ -731,7 +600,7 @@ const ElderlyRegistration = () => {
                                         placeholder="รหัสไปรษณีย์จะถูกกรอกอัตโนมัติ" 
                                         type="tel"
                                         max={5}
-                                        disabled={!!dataUser.data || sameAddress}
+                                        disabled={!!dataUser.data}
                                         {...register("takecare_postcode")}
                                         isInvalid={!!errors.takecare_postcode}
                                         isValid={isFieldValid("takecare_postcode")}
@@ -879,7 +748,7 @@ const ElderlyRegistration = () => {
 
             <style jsx global>{`
                 /* ===============================
-                   Profile / Registration Styles
+                    Profile / Registration Styles
                 ================================ */
                 .profile-container {
                     max-width: 850px;
