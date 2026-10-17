@@ -251,10 +251,10 @@ const kpiBox = (label: string, value: string, unit: string, color: string) => ({
 });
 
 const SAFEZONE_STATUS_CONFIG: Record<number, { color: string; title: string; detail: string }> = {
-    0: { color: '#22C55E', title: '✅ ปลอดภัยแล้ว', detail: 'กลับเข้าสู่เขตปลอดภัย' },
-    1: { color: '#FFA500', title: '⚠️ แจ้งเตือนระดับ 1', detail: 'ออกนอกเขตปลอดภัยชั้นที่ 1' },
-    3: { color: '#FF8800', title: '🟠 เฝ้าระวังระดับ 2', detail: 'กำลังเข้าใกล้ขอบเขตชั้นที่ 2' },
-    2: { color: '#FF0000', title: '🚨 อันตรายสูงสุด!', detail: 'ออกนอกเขตปลอดภัยชั้นที่ 2' },
+    0: { color: '#166534', title: '🛡️ ปลอดภัยแล้ว', detail: 'กลับเข้าสู่เขตปลอดภัย' },
+    1: { color: '#92400E', title: '⚠️ ออกพื้นที่เฝ้าระวัง', detail: 'ออกนอกเขตปลอดภัยชั้นที่ 1' },
+    3: { color: '#854D0E', title: '⚠️ ใกล้เขตอันตราย', detail: 'กำลังจะออกเขตปลอดภัยชั้นที่ 2' },
+    2: { color: '#B91C1C', title: '🚨 ออกนอกเขตปลอดภัย', detail: 'ออกนอกเขตปลอดภัยชั้นที่ 2 แล้ว' },
 };
 const RED_ALERT_HEADER_COLOR = '#FF0000';
 const CONSENT_NOTE_TEXT = '*หมาย: ข้าพเจ้ายินยอมเปิดเผยข้อมูลตำแหน่งปัจจุบันของผู้ที่มีภาวะพึ่งพิง';
@@ -361,9 +361,9 @@ export const getFlexTemplate = (
             margin: 'md',
             spacing: 'sm',
             contents: [
-                baseline('ชื่อผู้มีภาวะพึ่งพิง', name),
+                baseline('คุณ', name),
                 baseline('พิกัดปัจจุบัน', `${latitude}, ${longitude}`),
-                baseline('เวลาแจ้งเตือน', timeText),
+                baseline('เวลา', timeText),
             ],
         },
     ];
@@ -371,28 +371,28 @@ export const getFlexTemplate = (
     if (postbackData) {
         contents.push(
             {
-                type: 'button',
-                style: 'primary',
-                height: 'sm',
-                margin: 'xxl',
-                color: '#ff0000',  
-                action: {
-                    type: 'postback',
-                    label: 'ส่งขอความช่วยเหลือเพิ่มเติม',
-                    data: postbackData,
-                },
-            },
-            {
                     type: 'button',
-                    color: "#1976D2",
+                    color: "#B91C1C",
                     style: 'primary',
                     height: 'sm',
                     action: {
                         type: 'uri',
-                        label: 'ดูแผนที่/นำทาง',
+                        label: 'ดูตำแหน่งปัจจุบัน',
                         uri: `${WEB_API}/location?auToken=${resUser?.users_line_id || ''}&idsafezone=${resSafezone?.safezone_id || ''}&idlocation=${extendedHelpId || ''}`
                     },
                 },
+            {
+                type: 'button',
+                style: 'primary',
+                height: 'sm',
+                margin: 'xxl',
+                color: '#7F1D1D',  
+                action: {
+                    type: 'postback',
+                    label: 'ขอความช่วยเหลือ',
+                    data: postbackData,
+                },
+            },
             {
                 type: "text",
                 wrap: true,
@@ -1477,7 +1477,7 @@ export const replyNotificationPostbackfall = async ({
 }: ReplyNotificationPostbackfall) => {
     try {
         const contents = getRedAlertTemplate({
-            title: 'แจ้งเตือนการล้ม',
+            title: '💥 ตรวจพบการล้ม',
             message,
             postbackData: `userLineId=${replyToken}&takecarepersonId=${takecarepersonId}&type=${type}`,
             showConsentNote: true,
