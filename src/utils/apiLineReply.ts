@@ -440,7 +440,7 @@ export const getFlexTemplate = (
             contents: [
                 {
                     type: 'text',
-                    text: isTest ? `🧪 TEST | ${config.title}` : config.title,
+                    text: isTest ? `${config.title}` : config.title,
                     color: '#FFFFFF',
                     size: 'lg',
                     weight: 'bold',
@@ -464,8 +464,8 @@ export const getFallTestFlexTemplate = (
 ) =>
     getRedAlertTemplate({
         title: fallStatus === 2
-            ? '🧪 TEST | 💥 ตรวจพบการล้ม — กดไม่โอเค'
-            : '🧪 TEST | 🚨 ตรวจพบการล้ม — ไม่มีการตอบสนอง',
+            ? '💥 ตรวจพบการล้ม — กดไม่โอเค'
+            : '🚨 ตรวจพบการล้ม — ไม่มีการตอบสนอง',
         message: fallStatus === 2
             ? `คุณ ${name} กด ขอความช่วยเหลือ`
             : `คุณ ${name} ไม่มีการตอบสนองภายใน 15 วินาที`,
@@ -555,7 +555,7 @@ export const handleFlexTestCommand = async ({
     if (fallStatus !== undefined) {
         await replyFlexMessage({
             replyToken,
-            altText: '🧪 TEST แจ้งเตือนการล้ม',
+            altText: 'แจ้งเตือนการล้ม',
             contents: getFallTestFlexTemplate(fallStatus, name, mapUri),
         });
         console.info('[LINE Flex test] fall test Flex replied');
@@ -572,7 +572,7 @@ export const handleFlexTestCommand = async ({
     });
     await replyFlexMessage({
         replyToken,
-        altText: '🧪 TEST แจ้งเตือน Safezone',
+        altText: 'Safezone',
         contents: getFlexTemplate(
             safezoneStatus,
             name,
