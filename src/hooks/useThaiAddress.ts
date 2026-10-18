@@ -52,7 +52,7 @@ export const useThaiAddress = () => {
     setLoading(true);
 
     fetch(
-      "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/latest/province_with_district_and_sub_district.json",
+      "https://raw.githubusercontent.com/kongvut/thai-province-data/refs/heads/master/api/v2/province_with_district_and_sub_district.json?fbclid=IwY2xjawVBe8ZleHRuA2FlbQIxMQBwZG9mA3NydGMGYXBwX2lkATAAAR7ALNPqj9vCG-BjUj-4GcllXMIMuPKIsVvsz_NwaqkwQh3raE_61J5jSAQaDA_aem_XkuFg0GjkTdit02Enj7_1Q",
       { signal: controller.signal }
     )
       .then((res) => {
