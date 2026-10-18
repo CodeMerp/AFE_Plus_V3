@@ -1571,3 +1571,23 @@ export const pushFlexMessage = async ({
         }
     }
 }
+
+export const replyFlexMessage = async ({
+    replyToken,
+    altText,
+    contents,
+}: ReplyFlexMessage) => {
+    const requestData = {
+        replyToken,
+        messages: [
+            {
+                type: 'flex',
+                altText,
+                contents,
+            },
+        ],
+    };
+
+    const response = await axios.post(LINE_MESSAGING_API, requestData, { headers: LINE_HEADER });
+    return response.data;
+}

@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
 import prisma from '@/lib/prisma'
-import { getFallTestFlexTemplate, getFlexTemplate, pushFlexMessage, replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyMapCoordinates } from '@/utils/apiLineReply';
+import { getFallTestFlexTemplate, getFlexTemplate, replyFlexMessage, replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyMapCoordinates } from '@/utils/apiLineReply';
 import { replyNotification as replyNotificationToGroup } from '@/utils/apiLineGroup';
 import { encrypt, parseQueryString } from '@/utils/helpers'
 import { postbackSafezone, postbackAccept, postbackClose } from '@/lib/lineFunction'
@@ -139,8 +139,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
         const name = `${takecareperson.takecare_fname} ${takecareperson.takecare_sname}`.trim();
         if (fallTestStatus !== undefined) {
-          await pushFlexMessage({
-            replyToken: userId,
+          await replyFlexMessage({
+            replyToken,
             altText: '🧪 TEST แจ้งเตือนการล้ม',
             contents: getFallTestFlexTemplate(fallTestStatus, name),
           });
@@ -180,8 +180,8 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
           hour: '2-digit',
           minute: '2-digit',
         });
-        await pushFlexMessage({
-          replyToken: userId,
+        await replyFlexMessage({
+          replyToken,
           altText: '🧪 TEST แจ้งเตือน Safezone',
           contents: getFlexTemplate(
             safezoneTestStatus,
