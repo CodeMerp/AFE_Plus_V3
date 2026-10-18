@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { NextResponse } from 'next/server'
 import axios from "axios";
 import prisma from '@/lib/prisma'
-import { replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyMapCoordinates } from '@/utils/apiLineReply';
+import { getFallTestFlexTemplate, getFlexTemplate, pushFlexMessage, replyMessage, replyRegistration, replyUserData, replyNotRegistration, replyMenuBorrowequipment, replyConnection, replyLocation, replySetting, replyUserInfo, replyNotification, replyMapCoordinates } from '@/utils/apiLineReply';
 import { replyNotification as replyNotificationToGroup } from '@/utils/apiLineGroup';
 import { encrypt, parseQueryString } from '@/utils/helpers'
 import { postbackSafezone, postbackAccept, postbackClose } from '@/lib/lineFunction'
@@ -12,6 +12,19 @@ type Data = {
   message: string;
   data?: any;
 }
+
+const SAFEZONE_TEST_COMMANDS: Record<string, number> = {
+  'Testออกเขต1': 1,
+  'Testใกล้ออกเขต2': 3,
+  'Testออกเขต2': 2,
+  'Testกลับเข้าสู่เขต': 0,
+};
+
+const FALL_TEST_COMMANDS: Record<string, 2 | 3> = {
+  'Testล้มกดไม่โอเค': 2,
+  'Testล้มไม่ตอบสนอง': 3,
+  'Testล้มใม่ตอบสนอง': 3,
+};
 
 const getUser = async (userId: string) => {
   const responseUser = await axios.get(`${process.env.WEB_DOMAIN}/api/user/getUser/${userId}`);
@@ -95,7 +108,97 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
 
     // Message (text) handling from user
     if (events.type === 'message' && events.source?.type === 'user' && events.message?.type === 'text') {
-      const text = events.message.text;
+      const text = events.message.text.trim();
+
+      const safezoneTestStatus = SAFEZONE_TEST_COMMANDS[text];
+      const fallTestStatus = FALL_TEST_COMMANDS[text];
+      if (safezoneTestStatus !== undefined || fallTestStatus !== undefined) {
+        if (!userId) {
+          await replyMessage({ replyToken, message: 'ไม่พบ LINE user ID สำหรับทดสอบ' });
+          return res.status(200).json({ message: 'ok' });
+        }
+
+        const user = await prisma.users.findFirst({
+          where: { users_line_id: userId },
+        });
+        if (!user) {
+          await replyMessage({ replyToken, message: 'คำสั่ง Test ใช้ได้เฉพาะบัญชี LINE ที่ลงทะเบียนแล้ว' });
+          return res.status(200).json({ message: 'ok' });
+        }
+
+        const takecareperson = await prisma.takecareperson.findFirst({
+          where: {
+            users_id: user.users_id,
+            takecare_status: 1,
+          },
+        });
+        if (!takecareperson) {
+          await replyMessage({ replyToken, message: 'ไม่พบข้อมูลผู้มีภาวะพึ่งพิงที่เปิดใช้งานสำหรับบัญชีนี้' });
+          return res.status(200).json({ message: 'ok' });
+        }
+
+        const name = `${takecareperson.takecare_fname} ${takecareperson.takecare_sname}`.trim();
+        if (fallTestStatus !== undefined) {
+          await pushFlexMessage({
+            replyToken: userId,
+            altText: '🧪 TEST แจ้งเตือนการล้ม',
+            contents: getFallTestFlexTemplate(fallTestStatus, name),
+          });
+          return res.status(200).json({ message: 'ok' });
+        }
+
+        const [safezone, latestLocation] = await Promise.all([
+          prisma.safezone.findFirst({
+            where: {
+              users_id: user.users_id,
+              takecare_id: takecareperson.takecare_id,
+            },
+          }),
+          prisma.location.findFirst({
+            where: {
+              users_id: user.users_id,
+              takecare_id: takecareperson.takecare_id,
+            },
+            orderBy: { locat_timestamp: 'desc' },
+          }),
+        ]);
+
+        if (!safezone) {
+          await replyMessage({ replyToken, message: 'ไม่พบการตั้งค่า Safezone สำหรับทดสอบ' });
+          return res.status(200).json({ message: 'ok' });
+        }
+        if (!latestLocation) {
+          await replyMessage({ replyToken, message: 'ไม่พบตำแหน่งล่าสุด จึงไม่สามารถแสดงการ์ดทดสอบ Safezone ได้' });
+          return res.status(200).json({ message: 'ok' });
+        }
+
+        const timeText = new Date().toLocaleString('th-TH', {
+          timeZone: 'Asia/Bangkok',
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        await pushFlexMessage({
+          replyToken: userId,
+          altText: '🧪 TEST แจ้งเตือน Safezone',
+          contents: getFlexTemplate(
+            safezoneTestStatus,
+            name,
+            latestLocation.locat_latitude,
+            latestLocation.locat_longitude,
+            timeText,
+            undefined,
+            undefined,
+            safezone,
+            { users_line_id: userId },
+            true
+          ),
+        });
+        return res.status(200).json({ message: 'ok' });
+      }
+
       if (text === 'ลงทะเบียน') {
         const responseUser = await api.getUser(userId);
         if (responseUser) await replyUserData({ replyToken, userData: responseUser });

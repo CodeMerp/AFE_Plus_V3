@@ -343,7 +343,8 @@ export const getFlexTemplate = (
     postbackData?: string,
     extendedHelpId?: number,
     resSafezone?: any,
-    resUser?: { users_line_id: string }
+    resUser?: { users_line_id: string },
+    isTest = false
 ) => {
     const config = SAFEZONE_STATUS_CONFIG[status] || SAFEZONE_STATUS_CONFIG[2];
     const contents: any[] = [
@@ -422,7 +423,7 @@ export const getFlexTemplate = (
             contents: [
                 {
                     type: 'text',
-                    text: config.title,
+                    text: isTest ? `🧪 TEST | ${config.title}` : config.title,
                     color: '#FFFFFF',
                     size: 'lg',
                     weight: 'bold',
@@ -438,6 +439,17 @@ export const getFlexTemplate = (
         },
     };
 };
+
+export const getFallTestFlexTemplate = (fallStatus: 2 | 3, name: string) =>
+    getRedAlertTemplate({
+        title: fallStatus === 2
+            ? '🧪 TEST | 💥 ตรวจพบการล้ม — กดไม่โอเค'
+            : '🧪 TEST | 🚨 ตรวจพบการล้ม — ไม่มีการตอบสนอง',
+        message: fallStatus === 2
+            ? `คุณ ${name} กด "ไม่โอเค" ขอความช่วยเหลือ`
+            : `คุณ ${name} ไม่มีการตอบสนองภายใน 30 วินาที`,
+        showConsentNote: true,
+    });
 
 export const getUserProfile = async (userId: string) => {
     try {
@@ -492,9 +504,8 @@ export const pushMessage = async ({
         const response = await axios.post(LINE_PUSH_MESSAGING_API, requestData, { headers: LINE_HEADER });
         return response.data;
     } catch (error) {
-        if (error instanceof Error) {
-            console.log(error.message);
-        }
+        console.error('pushFlexMessage failed:', error);
+        throw error;
     }
 }
 
