@@ -493,7 +493,12 @@ export default async function handle(
                     const postback = parseQueryString(events.postback.data);
                     console.log("Received postback data:", postback);
 
-                    if (postback.type === "safezone") {
+                    if (postback.type === "flex_test_help") {
+                        await replyMessage({
+                            replyToken,
+                            message: "ปุ่มขอความช่วยเหลือ",
+                        });
+                    } else if (postback.type === "safezone") {
                         console.log("Handling safezone postback data.");
                         const result: any = await postbackSafezone({
                             userLineId: postback.userLineId,

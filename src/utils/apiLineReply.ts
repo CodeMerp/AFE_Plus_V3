@@ -263,11 +263,13 @@ const getRedAlertTemplate = ({
     title,
     message,
     postbackData,
+    mapUri,
     showConsentNote = false,
 }: {
     title: string;
     message: string;
     postbackData?: string;
+    mapUri?: string;
     showConsentNote?: boolean;
 }) => {
     const bodyContents: any[] = [
@@ -280,12 +282,27 @@ const getRedAlertTemplate = ({
         },
     ];
 
-    if (postbackData) {
+    if (mapUri) {
         bodyContents.push({
             type: 'button',
             style: 'primary',
             height: 'sm',
             margin: 'xxl',
+            color: '#B91C1C',
+            action: {
+                type: 'uri',
+                label: 'ดูแผนที่จากระบบ',
+                uri: mapUri,
+            },
+        });
+    }
+
+    if (postbackData) {
+        bodyContents.push({
+            type: 'button',
+            style: 'primary',
+            height: 'sm',
+            margin: mapUri ? 'md' : 'xxl',
             color: RED_ALERT_HEADER_COLOR,
             action: {
                 type: 'postback',
@@ -440,14 +457,20 @@ export const getFlexTemplate = (
     };
 };
 
-export const getFallTestFlexTemplate = (fallStatus: 2 | 3, name: string) =>
+export const getFallTestFlexTemplate = (
+    fallStatus: 2 | 3,
+    name: string,
+    mapUri: string
+) =>
     getRedAlertTemplate({
         title: fallStatus === 2
             ? '🧪 TEST | 💥 ตรวจพบการล้ม — กดไม่โอเค'
             : '🧪 TEST | 🚨 ตรวจพบการล้ม — ไม่มีการตอบสนอง',
         message: fallStatus === 2
-            ? `คุณ ${name} กด "ไม่โอเค" ขอความช่วยเหลือ`
-            : `คุณ ${name} ไม่มีการตอบสนองภายใน 30 วินาที`,
+            ? `คุณ ${name} กด ขอความช่วยเหลือ`
+            : `คุณ ${name} ไม่มีการตอบสนองภายใน 15 วินาที`,
+        mapUri,
+        postbackData: 'type=flex_test_help',
         showConsentNote: true,
     });
 
@@ -503,16 +526,6 @@ export const handleFlexTestCommand = async ({
     }
 
     const name = `${takecareperson.takecare_fname} ${takecareperson.takecare_sname}`.trim();
-    if (fallStatus !== undefined) {
-        await replyFlexMessage({
-            replyToken,
-            altText: '🧪 TEST แจ้งเตือนการล้ม',
-            contents: getFallTestFlexTemplate(fallStatus, name),
-        });
-        console.info('[LINE Flex test] fall test Flex replied');
-        return true;
-    }
-
     const [safezone, latestLocation] = await Promise.all([
         prisma.safezone.findFirst({
             where: {
@@ -538,6 +551,17 @@ export const handleFlexTestCommand = async ({
         return true;
     }
 
+    const mapUri = `${WEB_API}/location?auToken=${encodeURIComponent(userId)}&idsafezone=${safezone.safezone_id}&idlocation=${latestLocation.location_id}`;
+    if (fallStatus !== undefined) {
+        await replyFlexMessage({
+            replyToken,
+            altText: '🧪 TEST แจ้งเตือนการล้ม',
+            contents: getFallTestFlexTemplate(fallStatus, name, mapUri),
+        });
+        console.info('[LINE Flex test] fall test Flex replied');
+        return true;
+    }
+
     const timeText = new Date().toLocaleString('th-TH', {
         timeZone: 'Asia/Bangkok',
         day: 'numeric',
@@ -555,8 +579,8 @@ export const handleFlexTestCommand = async ({
             latestLocation.locat_latitude,
             latestLocation.locat_longitude,
             timeText,
-            undefined,
-            undefined,
+            safezoneStatus === 2 ? 'type=flex_test_help' : undefined,
+            latestLocation.location_id,
             safezone,
             { users_line_id: userId },
             true

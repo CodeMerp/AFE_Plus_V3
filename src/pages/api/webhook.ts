@@ -182,6 +182,11 @@ export default async function handle(req: NextApiRequest, res: NextApiResponse) 
       const postback = parseQueryString(events.postback.data);
       console.log('Parsed Postback: ', postback);
 
+      if (postback.type === 'flex_test_help') {
+        await replyMessage({ replyToken, message: 'ปุ่มขอความช่วยเหลือ' });
+        return res.status(200).json({ message: 'ok' });
+      }
+
       if (postback.action === 'show_map') {
         await replyMapCoordinates({ toLineId: events.source.userId, extenId: postback.extenId || postback.exten_id, takecareId: postback.takecare_id || postback.takecareId });
         return res.status(200).json({ message: 'ok' });
