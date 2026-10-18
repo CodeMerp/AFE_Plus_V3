@@ -14,6 +14,7 @@ import {
     replySetting,
     replyUserInfo,
     replyNotification,
+    handleFlexTestCommand,
 } from "@/utils/apiLineReply";
 import { replyNotification as replyNotificationToGroup } from '@/utils/apiLineGroup';
 import { encrypt, parseQueryString } from "@/utils/helpers";
@@ -208,6 +209,14 @@ export default async function handle(
                             "Received text message:",
                             events.message.text
                         ); // แสดงข้อความที่ได้รับจากผู้ใช้
+
+                        if (await handleFlexTestCommand({
+                            command: events.message.text.trim(),
+                            replyToken,
+                            userId,
+                        })) {
+                            return res.status(200).json({ message: "success" });
+                        }
 
                         if (events.message.text === "ดูข้อมูล AFE PLUS" || events.message.text === "เมนู") {
                             const responseUser = await api.getUser(userId);

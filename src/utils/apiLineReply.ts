@@ -451,6 +451,121 @@ export const getFallTestFlexTemplate = (fallStatus: 2 | 3, name: string) =>
         showConsentNote: true,
     });
 
+const SAFEZONE_TEST_COMMANDS: Record<string, number> = {
+    'Testออกเขต1': 1,
+    'Testใกล้ออกเขต2': 3,
+    'Testออกเขต2': 2,
+    'Testกลับเข้าสู่เขต': 0,
+};
+
+const FALL_TEST_COMMANDS: Record<string, 2 | 3> = {
+    'Testล้มกดไม่โอเค': 2,
+    'Testล้มไม่ตอบสนอง': 3,
+    'Testล้มใม่ตอบสนอง': 3,
+};
+
+export const handleFlexTestCommand = async ({
+    command,
+    replyToken,
+    userId,
+}: {
+    command: string;
+    replyToken: string;
+    userId?: string;
+}) => {
+    const safezoneStatus = SAFEZONE_TEST_COMMANDS[command];
+    const fallStatus = FALL_TEST_COMMANDS[command];
+    if (safezoneStatus === undefined && fallStatus === undefined) return false;
+
+    console.info('[LINE Flex test] received command:', command);
+    if (!userId) {
+        await replyMessage({ replyToken, message: 'ไม่พบ LINE user ID สำหรับทดสอบ' });
+        return true;
+    }
+
+    const user = await prisma.users.findFirst({
+        where: { users_line_id: userId },
+    });
+    if (!user) {
+        await replyMessage({ replyToken, message: 'คำสั่ง Test ใช้ได้เฉพาะบัญชี LINE ที่ลงทะเบียนแล้ว' });
+        return true;
+    }
+
+    const takecareperson = await prisma.takecareperson.findFirst({
+        where: {
+            users_id: user.users_id,
+            takecare_status: 1,
+        },
+    });
+    if (!takecareperson) {
+        await replyMessage({ replyToken, message: 'ไม่พบข้อมูลผู้มีภาวะพึ่งพิงที่เปิดใช้งานสำหรับบัญชีนี้' });
+        return true;
+    }
+
+    const name = `${takecareperson.takecare_fname} ${takecareperson.takecare_sname}`.trim();
+    if (fallStatus !== undefined) {
+        await replyFlexMessage({
+            replyToken,
+            altText: '🧪 TEST แจ้งเตือนการล้ม',
+            contents: getFallTestFlexTemplate(fallStatus, name),
+        });
+        console.info('[LINE Flex test] fall test Flex replied');
+        return true;
+    }
+
+    const [safezone, latestLocation] = await Promise.all([
+        prisma.safezone.findFirst({
+            where: {
+                users_id: user.users_id,
+                takecare_id: takecareperson.takecare_id,
+            },
+        }),
+        prisma.location.findFirst({
+            where: {
+                users_id: user.users_id,
+                takecare_id: takecareperson.takecare_id,
+            },
+            orderBy: { locat_timestamp: 'desc' },
+        }),
+    ]);
+
+    if (!safezone) {
+        await replyMessage({ replyToken, message: 'ไม่พบการตั้งค่า Safezone สำหรับทดสอบ' });
+        return true;
+    }
+    if (!latestLocation) {
+        await replyMessage({ replyToken, message: 'ไม่พบตำแหน่งล่าสุด จึงไม่สามารถแสดงการ์ดทดสอบ Safezone ได้' });
+        return true;
+    }
+
+    const timeText = new Date().toLocaleString('th-TH', {
+        timeZone: 'Asia/Bangkok',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+    await replyFlexMessage({
+        replyToken,
+        altText: '🧪 TEST แจ้งเตือน Safezone',
+        contents: getFlexTemplate(
+            safezoneStatus,
+            name,
+            latestLocation.locat_latitude,
+            latestLocation.locat_longitude,
+            timeText,
+            undefined,
+            undefined,
+            safezone,
+            { users_line_id: userId },
+            true
+        ),
+    });
+    console.info('[LINE Flex test] Safezone test Flex replied');
+    return true;
+};
+
 export const getUserProfile = async (userId: string) => {
     try {
         const response = await axios.get(`${LINE_PROFILE_API}/${userId}`, { headers: LINE_HEADER });
